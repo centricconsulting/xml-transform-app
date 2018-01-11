@@ -101,7 +101,7 @@ DROP TABLE vex.[<xsl:value-of select="$table-name" />]
 
 CREATE TABLE [vex].[<xsl:value-of select="$table-name" />] (
   
-  -- GENERAL NOTES: Many columns mark as nullable in order to improve load efficiency. 
+  -- GENERAL NOTES: Many columns are marked as nullable in order to improve load efficiency. 
   --   This is safe, assuming that loading is only handled through dedicated procs.
 
   -- KEY COLUMNS
@@ -522,7 +522,7 @@ GO
       @data-length,
       @data-precision,
       @required,
-      //model/instruction/@multi-byte)" /></xsl:if></xsl:template>
+      //model/instruction/@multibyte)" /></xsl:if></xsl:template>
 
 
   <!-- ########################################### -->
@@ -581,9 +581,6 @@ GO
         // replace "." with the physical class if applicable
         if(result.Contains(".")) result = result.Replace(".", PhysicalClass);
 
-        // append physical class if not already the suffix
-        if(!result.EndsWith(PhysicalClass)) result = result + " " + PhysicalClass;
-
       }
 
       // replace key words, usually with shorter version
@@ -639,6 +636,7 @@ GO
         case "DATE": return "Date"; 
         case "TIMESTAMP": return "Timestamp";
         case "TIMESTAMP-EXCLUSIVE": return "TimestampEx";
+        case "DESC":
         case "DESCRIPTION": return "Desc";
         case "NAME": return "Name";
         case "AMOUNT": return "Amount";
@@ -649,6 +647,7 @@ GO
         case "IDENTIFIER": return "ID";
         case "INDICATOR": return "Ind";
         case "FLAG": return "Flag";
+        case "QUANTITY": return "Qty";
         case "NUMBER": return "Number";
 
         // table classes
@@ -697,6 +696,8 @@ GO
         switch (DataType.ToUpper())
         {
 
+          case "MULTIBYTE-STRING":
+          case "MB-STRING" : return "NVARCHAR(" + DataTypeLength + ")" + RequiredSQL;
           case "STRING":
           case "TEXT": 
           
@@ -753,6 +754,7 @@ GO
 
         // entity classes
         case "REFERENCE": return TextPrefix + "VARCHAR(" + IntegerText(DataTypeLength, 200) + ")";
+        case "DESC":
         case "DESCRIPTION": return TextPrefix + "VARCHAR(" + IntegerText(DataTypeLength, 200) + ")";
         case "CODE": return TextPrefix + "VARCHAR(" + IntegerText(DataTypeLength, 20) + ")";
         case "FLAG": return TextPrefix + "CHAR(" + IntegerText(DataTypeLength, 20) + ")";
@@ -764,6 +766,7 @@ GO
         case "TIMESTAMP": return "DATETIME2";
         case "TIMESTAMP-EXCLUSIVE": return "DATETIME2";
         
+        case "QUANTITY":
         case "VALUE":
         case "AMOUNT": return "DECIMAL(20,8)";
 
