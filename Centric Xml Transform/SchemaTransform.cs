@@ -114,7 +114,7 @@ namespace Centric.XmlTransform
       return Environment.GetEnvironmentVariable("ProgramFiles");
     }
 
-    public static bool XmlValidate(string FilePath)
+    public static bool XmlValidate(string FilePath, out string Message)
     {
       try
       {
@@ -122,16 +122,26 @@ namespace Centric.XmlTransform
         xd1.Load(FilePath);
         xd1 = null;
 
+        Message = null;
         return true;
       }
-      catch
+      catch(Exception ex)
       {
+        if(ex.InnerException != null)
+        {
+          Message = ex.InnerException.Message;
+        }
+        else
+        {
+          Message = ex.Message;
+        }
+        
         return false;
       }
     }
 
 
-    public static bool XslValidate(string FilePath)
+    public static bool XslValidate(string FilePath, out string Message)
     {
       try
       {
@@ -139,10 +149,21 @@ namespace Centric.XmlTransform
         xd1.Load(FilePath);
         xd1 = null;
 
+        Message = null;
         return true;
       }
-      catch
+      catch(Exception ex)
       {
+
+        if (ex.InnerException != null)
+        {
+          Message = ex.InnerException.Message;
+        }
+        else
+        {
+          Message = ex.Message;
+        }
+
         return false;
       }
     }

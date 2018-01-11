@@ -16,8 +16,7 @@
       <attribute
         name ="Customer"
         grain="true"
-        class="reference" physical="Customer ." 
-        data-type="text" data-length="200" 
+        class="reference" physical="Customer ."  
         required="true" />
 
       <!-- FOREIGN KEY attributeS -->
@@ -27,33 +26,29 @@
         name ="Customer Name"
         definition="Name of the customer organization."
         class="name" physical="Customer Legal ."
-        data-type="text" data-length="200"
         required="true"
-        display="true" />
+        visible="true" />
 
       <attribute
         name ="Parent Organization Name"
         definition="Name of a parent organization, often owning multiple customers."
         class="name" physical="Parent Organization ."
-        data-type="text" data-length="200"
         required="true"
-        display="true" />
+        visible="true" />
 
       <attribute 
         name ="Customer Number"
         definition="Identifier of the customer created by internal systems.  Not necessarily unique."
         physical="Customer ."
         class="number"
-        data-type="text" 
-        data-length="200" 
-        display="true" />
+        data-length="50" 
+        visible="true" />
 
       <attribute
         name ="Internal Risk Score"
         definition="Rating of risk that the customer will pay invoices by the specified term.  Higher score indicates greater risk."
-        class="value" physical="Risk Score ."
-        data-type="decimal" data-length="12" data-precision="4"
-        display="true" />
+        class="value" physical="Risk Score ."        
+        visible="true" />
 
   </entity>
 
@@ -67,14 +62,12 @@
       name ="Customer"
       grain="true"
       class="reference" physical="Customer ."
-      data-type="text" data-length="200"
       required="true" />
 
     <!-- FOREIGN KEY attributeS -->
     <attribute
       name ="Customer"
       class="reference" physical="Master Customer ."
-      data-type="text" data-length="200"
       required="false" />
 
     
@@ -90,23 +83,20 @@
         name ="Legal Entity"
         grain="true"
         class="reference" physical="Legal Entity ." 
-        data-type="text" data-length="200" 
         required="true" />
 
       <attribute
         name ="Fiscal Year"
         definition ="Fiscal year corresponding to the legal entity."
         grain="true"
-        class="integer"
-        data-type="integer"
+        class="index" physcial="Fiscal Year"
         required="true" />
 
       <attribute
         name ="Fiscal Period Of Year"
         definition ="Index from 1..n where (n) is the number of periods in a Fiscal Year."
         grain="true"
-        class="integer"
-        data-type="integer"
+        class="index" physical="Fiscal Period Of Year"
         required="true" />
 
       <!-- FOREIGN KEY attributeS -->
@@ -116,25 +106,22 @@
         name ="Begin Fiscal Period Date"
         definition="Date of the first day in the corresponding fiscal period."
         class="date" physical="Begin Fiscal Period ."
-        data-type="date"
         required="true"
-        display="true" />
+        visible="true" />
 
       <attribute
         name ="End Fiscal Period Date"
         definition="Date of the last day in the corresponding fiscal period."
         class="date" physical="End Fiscal Period ."
-        data-type="date"
         required="false"
-        display="true" />
+        visible="true" />
 
       <attribute
         name ="Display Month of Year"
         definition="Index of the calendar month (1..12) for the month used in the fiscal period label."
-        class="integer" 
-        data-type="int" 
+        class="index" physical="Display Month of Year"
         required="true"
-        display="true" />
+        visible="true" />
 
   </entity>
 
@@ -148,7 +135,6 @@
         name ="Sales Order Line"
         grain="true"
         class="reference" physical="Sales Order Line ." 
-        data-type="text" data-length="200"
         required="true" />
 
       <attribute
@@ -156,7 +142,6 @@
         definition ="Date for which the sales order line status is specified."
         grain="true"
         class="date" physical="Status ."
-        data-type="date" 
         required="true" />
 
       <!-- FOREIGN KEY attributeS -->
@@ -164,16 +149,14 @@
         name ="Sales Order Line Status"
         definition ="Status of the sales order line at the close of the status date."
         class="reference" physical="Sales Order Line Status ."
-        data-type="text" data-length="200" 
-        display="true" />
+        visible="true" />
       
       <!-- ATTRIBUTE attributeS -->
       <attribute
         name ="Status Comment"
         definition="Date of the first day in the corresponding fiscal period."
         class="description" physical="Status Comment ."
-        data-type="text" data-length="200"
-        display="true" />
+        visible="true" />
 
   </entity>
 

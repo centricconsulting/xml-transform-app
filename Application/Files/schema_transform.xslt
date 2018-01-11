@@ -12,21 +12,6 @@
   <!-- ######## TEMPLATE: ROOT NODE ############## -->
   <xsl:template match="/">
 
-    <xsl:apply-templates select="//model/entity">
-      <xsl:sort select="@name" data-type="text"/>
-    </xsl:apply-templates>
-
-  </xsl:template>
-
-  <!-- ######## TEMPLATE: ENTITY ############## -->
-  <xsl:template match="entity">
-    <xsl:variable name = "table-name"
-      select = "user:BuildPhysicalName(
-        @name,
-        @physical,
-        @class,
-        //model/instruction/@column-case,
-        //model/instruction/@column-whitespace-replace)" />
 <xsl:text>/*
 ##################################################################################################  
 ###########  DATABASE PREPARATION
@@ -49,7 +34,24 @@ EXEC sp_executesql N'CREATE SCHEMA [vex]';
 GO
 </xsl:text>
 
-<xsl:text>/*
+    <xsl:apply-templates select="//model/entity">
+      <xsl:sort select="@name" data-type="text"/>
+    </xsl:apply-templates>
+
+  </xsl:template>
+
+  <!-- ######## TEMPLATE: ENTITY ############## -->
+  <xsl:template match="entity">
+    <xsl:variable name = "table-name"
+      select = "user:BuildPhysicalName(
+        @name,
+        @physical,
+        @class,
+        //model/instruction/@column-case,
+        //model/instruction/@column-whitespace-replace)" />
+
+<xsl:text>
+/*
 ##################################################################################################  
 ###########  ENTITY OBJECT DEFINITIONS FOR [</xsl:text><xsl:value-of select="@name" /><xsl:text>]
 ##################################################################################################
@@ -147,6 +149,7 @@ RETURN DATASET:
   - The version key is retained for reference purposes.
   - Assumes that grain column in the version table is unique based on version latest/current
   - The filter "version_latest_ind = 1" is used for domain tables, whereas "version_current_ind = 1" is used for transaction tables.
+  - Because this only contains latest records, the end dates have been supressed; they are always null.
 
 NOTES:
 
@@ -183,20 +186,17 @@ SELECT
 
   -- SOURCE COLUMNS
 , v.source_uid
-, v.source_rev_dtm AS begin_source_rev_dtm
-, vx.end_source_rev_dtmx
+, v.source_rev_dtm
 , v.source_rev_actor
 
   -- VERSION COLUMNS
 , v.<xsl:value-of select="$table-name" />_version_key
 , vx.version_index
-, v.version_dtm AS begin_version_dtm
-, vx.end_version_dtmx
+, v.version_dtm
 , vx.version_current_ind
 
   -- BATCH COLUMNS
-, v.version_batch_key AS begin_version_batch_key
-, vx.end_version_batch_key
+, v.version_batch_key
 
 FROM
 ver.<xsl:value-of select="$table-name" /> v
@@ -517,6 +517,7 @@ GO
       //model/instruction/@column-whitespace-replace)" />
 , <xsl:value-of select="$column-prefix" /><xsl:value-of select="$column-name" /><xsl:if test="not($suppress-data-type='true')"><xsl:text> </xsl:text>
   <xsl:value-of select="user:GetPhysicalDataType(
+      @class,
       @data-type,
       @data-length,
       @data-precision,
@@ -572,7 +573,7 @@ GO
         result = AttributeName.Trim();
       }
 
-      string PhysicalClass = GetPhysicalClass(Class);
+      string PhysicalClass = GetPhysicalClassSuffix(Class);
       
       if(PhysicalClass != null)
       {
@@ -628,7 +629,7 @@ GO
         return Text;
     }
 
-    public string GetPhysicalClass(string Class)
+    public string GetPhysicalClassSuffix(string Class)
     {
       switch (Class.ToUpper())
       {
@@ -644,7 +645,10 @@ GO
         case "VALUE": return "Value";
         case "CODE": return "Code";
         case "INDEX": return "Index";
+        case "COUNT": return "Count";
         case "IDENTIFIER": return "ID";
+        case "INDICATOR": return "Ind";
+        case "FLAG": return "Flag";
         case "NUMBER": return "Number";
 
         // table classes
@@ -655,56 +659,138 @@ GO
       }
     }
 
+    
+
+
     public string GetPhysicalDataType(
+      string Class,
       string DataType,
       string DataTypeLength,
       string DataTypePrecision,
       string Required,
       string MultiByte)
     {
+      
+      // Data Type is first derived from data type information
+      //   and is otherwise defaulted based on class
+      string pdt = null;
 
       string RequiredSQL = (Required == "true") ? " NOT NULL" : " NULL";
 
-      switch (DataType.ToUpper())
+      if(DataType == null || DataType.Trim().Length == 0)
+      {
+        pdt = GetPhysicalDataTypeFromClass(Class, DataTypeLength, MultiByte);
+
+        if(pdt == null)
+        {
+          return "{UNKNOWN DATA TYPE} " + RequiredSQL;
+        }
+        else
+        {
+          return pdt + " " + RequiredSQL;
+        }
+        
+      }
+      else
+      {
+      
+        switch (DataType.ToUpper())
+        {
+
+          case "STRING":
+          case "TEXT": 
+          
+            if(MultiByte == "true")
+            {
+              return "NVARCHAR(" + DataTypeLength + ")" + RequiredSQL;
+
+            } else {
+
+              return "VARCHAR(" + DataTypeLength + ")" + RequiredSQL;
+            }
+
+          case "CHARACTER":
+          case "CHAR":
+          
+            if(MultiByte == "true")
+            {
+              return "NCHAR(" + DataTypeLength + ")" + RequiredSQL;
+
+            } else {
+
+              return "CHAR(" + DataTypeLength + ")" + RequiredSQL;
+
+            }
+
+          case "DATE": return "DATE" + RequiredSQL;
+          case "DATETIME": 
+          case "TIMESTAMP": return "DATETIME2" + RequiredSQL;
+          case "INTEGER": 
+          case "INT":
+            return "INTEGER" + RequiredSQL;
+          case "MONEY": return "MONEY" + RequiredSQL;
+          case "NUMBER":
+          case "DECIMAL": return "DECIMAL(" + DataTypeLength + "," + DataTypePrecision + ")" + RequiredSQL;
+          case "FLOAT": return "FLOAT";
+
+          default: return "{UNKNOWN DATA TYPE}" + RequiredSQL;
+
+        }
+      }
+    }
+
+    public string GetPhysicalDataTypeFromClass(string Class, string DataTypeLength, string MultiByte)
+    {
+
+      string TextPrefix = null;
+      if(MultiByte.Equals("true"))
+      {
+        TextPrefix = "N";
+      }
+
+      switch (Class.ToUpper())
       {
 
-        case "TEXT": 
+        // entity classes
+        case "REFERENCE": return TextPrefix + "VARCHAR(" + IntegerText(DataTypeLength, 200) + ")";
+        case "DESCRIPTION": return TextPrefix + "VARCHAR(" + IntegerText(DataTypeLength, 200) + ")";
+        case "CODE": return TextPrefix + "VARCHAR(" + IntegerText(DataTypeLength, 20) + ")";
+        case "FLAG": return TextPrefix + "CHAR(" + IntegerText(DataTypeLength, 20) + ")";
+        case "NAME": return TextPrefix + "VARCHAR(" + IntegerText(DataTypeLength, 200) + ")";
+
+        case "NUMBER": return TextPrefix + "VARCHAR(" + IntegerText(DataTypeLength, 100) + ")";
+
+        case "DATE": return "DATE"; 
+        case "TIMESTAMP": return "DATETIME2";
+        case "TIMESTAMP-EXCLUSIVE": return "DATETIME2";
         
-          if(MultiByte == "true")
-          {
-            return "NVARCHAR(" + DataTypeLength + ")" + RequiredSQL;
+        case "VALUE":
+        case "AMOUNT": return "DECIMAL(20,8)";
 
-          } else {
+        case "INDEX":
+        case "COUNT":
+        case "IDENTIFIER": return "INT";
 
-            return "VARCHAR(" + DataTypeLength + ")" + RequiredSQL;
+        case "IND":
+        case "INDICATOR": return "BIT";
 
-          }
-
-        case "CHARACTER":
-        case "CHAR":
-        
-          if(MultiByte == "true")
-          {
-            return "NCHAR(" + DataTypeLength + ")" + RequiredSQL;
-
-          } else {
-
-            return "CHAR(" + DataTypeLength + ")" + RequiredSQL;
-
-          }
-
-        case "DATE": return "DATE" + RequiredSQL; 
-        case "TIMESTAMP": return "DATETIME2" + RequiredSQL;
-        case "INTEGER": 
-        case "INT":
-          return "INTEGER" + RequiredSQL;
-        case "MONEY": return "MONEY" + RequiredSQL;
-        case "DECIMAL": return "DECIMAL(" + DataTypeLength + "," + DataTypePrecision + ")" + RequiredSQL;
-        case "FLOAT": return "FLOAT";
-
-        default: return "{UNKNOWN DATA TYPE}" + RequiredSQL;
+        default: return null;
 
       }
+    }
+
+
+    public string IntegerText(string ProposedText, int DefaultValue)
+    {
+
+      int dtv;
+      if(!int.TryParse(ProposedText, out dtv))
+      {
+        // default the data type length
+        dtv = DefaultValue;
+      }
+
+      return dtv.ToString();
     }
 
   ]]>

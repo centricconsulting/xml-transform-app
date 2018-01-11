@@ -41,9 +41,12 @@ namespace Centric.XmlTransform
           return;
       }
 
-      if (!SchemaTransform.XslValidate(TransformFileText.Text))
+
+      string ErrorMessage = null;
+
+      if (!SchemaTransform.XslValidate(TransformFileText.Text, out ErrorMessage))
       {
-        MessageBox.Show(this, "The transform file is not a valid XSL format.", "Invalid Transform File",
+        MessageBox.Show(this, "The transform file is not a valid XSL format..\r\n\r\n" + ErrorMessage, "Invalid Transform File",
           MessageBoxButtons.OK, MessageBoxIcon.Stop);
         return;
       }
@@ -62,9 +65,10 @@ namespace Centric.XmlTransform
         return;
       }
 
-      if (!SchemaTransform.XmlValidate(DefinitionFileText.Text))
+
+      if (!SchemaTransform.XmlValidate(DefinitionFileText.Text, out ErrorMessage))
       {
-        MessageBox.Show(this, "The definition file is not a valid XML format.", "Invalid Definition File",
+        MessageBox.Show(this, "The definition file is not a valid XML format.\r\n\r\n" + ErrorMessage, "Invalid Definition File",
           MessageBoxButtons.OK, MessageBoxIcon.Stop);
         return;
       }

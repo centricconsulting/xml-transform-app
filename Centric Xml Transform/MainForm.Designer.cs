@@ -28,6 +28,7 @@
     /// </summary>
     private void InitializeComponent()
     {
+      System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
       this.TransformGroup = new System.Windows.Forms.GroupBox();
       this.TransformFileButton = new System.Windows.Forms.Button();
       this.TransformFileText = new System.Windows.Forms.TextBox();
@@ -111,7 +112,7 @@
       this.DefinitionGroup.Controls.Add(this.DefinitionFileText);
       this.DefinitionGroup.Controls.Add(this.DefinitionFileLabel);
       this.DefinitionGroup.Font = new System.Drawing.Font("Verdana", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-      this.DefinitionGroup.Location = new System.Drawing.Point(12, 379);
+      this.DefinitionGroup.Location = new System.Drawing.Point(12, 153);
       this.DefinitionGroup.Name = "DefinitionGroup";
       this.DefinitionGroup.Size = new System.Drawing.Size(840, 96);
       this.DefinitionGroup.TabIndex = 11;
@@ -174,7 +175,7 @@
       this.OutputGroup.Controls.Add(this.OutputFileText);
       this.OutputGroup.Controls.Add(this.OutputFileLabel);
       this.OutputGroup.Font = new System.Drawing.Font("Verdana", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-      this.OutputGroup.Location = new System.Drawing.Point(12, 151);
+      this.OutputGroup.Location = new System.Drawing.Point(15, 274);
       this.OutputGroup.Name = "OutputGroup";
       this.OutputGroup.Size = new System.Drawing.Size(840, 202);
       this.OutputGroup.TabIndex = 12;
@@ -357,7 +358,7 @@
       this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 13F);
       this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
       this.CancelButton = this.CloseButton;
-      this.ClientSize = new System.Drawing.Size(864, 552);
+      this.ClientSize = new System.Drawing.Size(871, 552);
       this.Controls.Add(this.TransformDateLabel);
       this.Controls.Add(this.InstructionLabel);
       this.Controls.Add(this.CloseButton);
@@ -367,10 +368,11 @@
       this.Controls.Add(this.TransformGroup);
       this.Font = new System.Drawing.Font("Verdana", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
       this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
+      this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
       this.MaximizeBox = false;
       this.Name = "MainForm";
       this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-      this.Text = "XSL Transformation";
+      this.Text = "Centric XML Transform";
       this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.MainForm_FormClosing);
       this.Load += new System.EventHandler(this.MainForm_Load);
       this.DragDrop += new System.Windows.Forms.DragEventHandler(this.MainForm_DragDrop);
