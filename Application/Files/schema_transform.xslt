@@ -11,8 +11,12 @@
 
   <!-- ######## TEMPLATE: ROOT NODE ############## -->
   <xsl:template match="/">
+<xsl:text>/* 
+##################################################################################################</xsl:text>
+###########  INCLUDED ENTITIES:<xsl:for-each select="//model/entity[@name=//model/render/entity or //model/render[@all='true']]">
+###############  <xsl:value-of select="./@name" /></xsl:for-each><xsl:text>
+##################################################################################################  
 
-<xsl:text>/*
 ##################################################################################################  
 ###########  DATABASE PREPARATION
 ##################################################################################################
@@ -34,7 +38,7 @@ EXEC sp_executesql N'CREATE SCHEMA [vex]';
 GO
 </xsl:text>
 
-    <xsl:apply-templates select="//model/entity">
+    <xsl:apply-templates select="//model/entity[@name=//model/render/entity or //model/render[@all='true']]">
       <xsl:sort select="@name" data-type="text"/>
     </xsl:apply-templates>
 
@@ -47,8 +51,8 @@ GO
         @name,
         @physical,
         @class,
-        //model/instruction/@column-case,
-        //model/instruction/@column-whitespace-replace)" />
+        //model/@column-case,
+        //model/@column-whitespace-replace)" />
 
 <xsl:text>
 /*
@@ -277,12 +281,20 @@ SELECT
     ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC) AS version_index
 
   -- XOR "^" inverts the deleted indicator
-, LAST_VALUE(v.source_delete_ind) OVER (
+, CASE
+  WHEN LEAD(v.<xsl:value-of select="$table-name" />_version_key, 1) OVER (
+    PARTITION BY <xsl:call-template
+      name="grain-attribute-list">
+    <xsl:with-param name="column-prefix">v.</xsl:with-param>
+  </xsl:call-template>
+    ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC) IS NULL THEN 0
+  ELSE LAST_VALUE(v.source_delete_ind) OVER (
     PARTITION BY <xsl:call-template
       name="grain-attribute-list">
       <xsl:with-param name="column-prefix">v.</xsl:with-param>
     </xsl:call-template>
-    ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC) ^ 1 AS version_current_ind
+    ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC) ^ 1 
+  END AS version_current_ind
 
 , CASE
   WHEN LAST_VALUE(v.<xsl:value-of select="$table-name" />_version_key) OVER (
@@ -391,12 +403,20 @@ BEGIN
         ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC) AS version_index
 
       -- XOR "^" inverts the deleted indicator
-    , LAST_VALUE(v.source_delete_ind) OVER (
+    , CASE
+      WHEN LEAD(v.<xsl:value-of select="$table-name" />_version_key, 1) OVER (
+        PARTITION BY <xsl:call-template
+          name="grain-attribute-list">
+        <xsl:with-param name="column-prefix">v.</xsl:with-param>
+      </xsl:call-template>
+        ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC) IS NULL THEN 0
+      ELSE LAST_VALUE(v.source_delete_ind) OVER (
         PARTITION BY <xsl:call-template
           name="grain-attribute-list">
           <xsl:with-param name="column-prefix">v.</xsl:with-param>
         </xsl:call-template>
-        ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC) ^ 1 AS version_current_ind
+        ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC) ^ 1 
+      END AS version_current_ind
 
     , CASE
       WHEN LAST_VALUE(v.<xsl:value-of select="$table-name" />_version_key) OVER (
@@ -435,8 +455,7 @@ BEGIN
     EXISTS (
 
 	    SELECT 1 FROM ver.<xsl:value-of select="$table-name" /> vg
-	    WHERE vg.version_batch_key >= @begin_version_batch_key
-	    AND <xsl:call-template
+	    WHERE vg.version_batch_key >= @begin_version_batch_key AND<xsl:call-template
           name="grain-attribute-list">
         <xsl:with-param name="column-prefix">vg.</xsl:with-param>
         <xsl:with-param name="second-column-prefix">v.</xsl:with-param>
@@ -513,8 +532,8 @@ GO
       @name,
       @physical,
       @class,
-      //model/instruction/@column-case,
-      //model/instruction/@column-whitespace-replace)" />
+      //model/@column-case,
+      //model/@column-whitespace-replace)" />
 , <xsl:value-of select="$column-prefix" /><xsl:value-of select="$column-name" /><xsl:if test="not($suppress-data-type='true')"><xsl:text> </xsl:text>
   <xsl:value-of select="user:GetPhysicalDataType(
       @class,
@@ -522,7 +541,7 @@ GO
       @data-length,
       @data-precision,
       @required,
-      //model/instruction/@multibyte)" /></xsl:if></xsl:template>
+      //model/@multibyte)" /></xsl:if></xsl:template>
 
 
   <!-- ########################################### -->
@@ -540,8 +559,8 @@ GO
           @name,
           @physical,
           @class,
-          //model/instruction/@column-case,
-          //model/instruction/@column-whitespace-replace)" />
+          //model/@column-case,
+          //model/@column-whitespace-replace)" />
       <xsl:if test="$delimit-with-cr='true'"><xsl:text>
       </xsl:text>
       </xsl:if><xsl:if test="position()>1"><xsl:value-of select="concat($phrase-delimiter,' ')"/></xsl:if>
