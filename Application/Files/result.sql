@@ -244,13 +244,15 @@ SELECT
     ORDER BY v.currency_version_key ASC) IS NULL THEN 0
   ELSE LAST_VALUE(v.source_delete_ind) OVER (
     PARTITION BY v.currency_uid
-    ORDER BY v.currency_version_key ASC) ^ 1 
+    ORDER BY v.currency_version_key ASC
+    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) ^ 1 
   END AS version_current_ind
 
 , CASE
   WHEN LAST_VALUE(v.currency_version_key) OVER (
     PARTITION BY v.currency_uid
-    ORDER BY v.currency_version_key ASC) = v.currency_version_key THEN 1
+    ORDER BY v.currency_version_key ASC
+    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.currency_version_key THEN 1
   ELSE 0 END AS version_latest_ind
 
 , LEAD(v.version_dtm, 1) OVER (
@@ -313,7 +315,7 @@ BEGIN
 
   SET NOCOUNT ON;
 
-  MERGE vex.currency AS vt
+  MERGE vex.currency WITH (HOLDLOCK) AS vt
 
   USING (
   
@@ -339,13 +341,15 @@ BEGIN
         ORDER BY v.currency_version_key ASC) IS NULL THEN 0
       ELSE LAST_VALUE(v.source_delete_ind) OVER (
         PARTITION BY v.currency_uid
-        ORDER BY v.currency_version_key ASC) ^ 1 
+        ORDER BY v.currency_version_key ASC
+        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) ^ 1 
       END AS version_current_ind
 
     , CASE
       WHEN LAST_VALUE(v.currency_version_key) OVER (
         PARTITION BY v.currency_uid
-        ORDER BY v.currency_version_key ASC) = v.currency_version_key THEN 1
+        ORDER BY v.currency_version_key ASC
+        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.currency_version_key THEN 1
       ELSE 0 END AS version_latest_ind
 
     , LEAD(v.version_dtm, 1) OVER (
@@ -391,7 +395,14 @@ BEGIN
     , end_source_rev_dtmx = vs.end_source_rev_dtmx
 
 
-  WHEN NOT MATCHED BY SOURCE THEN
+  WHEN NOT MATCHED BY SOURCE
+    AND EXISTS (
+
+	    SELECT 1 FROM ver.currency vg
+	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
+      vg.currency_uid = vt.currency_uid
+
+    ) THEN
     
     DELETE
 
@@ -647,13 +658,15 @@ SELECT
     ORDER BY v.customer_version_key ASC) IS NULL THEN 0
   ELSE LAST_VALUE(v.source_delete_ind) OVER (
     PARTITION BY v.customer_uid
-    ORDER BY v.customer_version_key ASC) ^ 1 
+    ORDER BY v.customer_version_key ASC
+    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) ^ 1 
   END AS version_current_ind
 
 , CASE
   WHEN LAST_VALUE(v.customer_version_key) OVER (
     PARTITION BY v.customer_uid
-    ORDER BY v.customer_version_key ASC) = v.customer_version_key THEN 1
+    ORDER BY v.customer_version_key ASC
+    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_version_key THEN 1
   ELSE 0 END AS version_latest_ind
 
 , LEAD(v.version_dtm, 1) OVER (
@@ -716,7 +729,7 @@ BEGIN
 
   SET NOCOUNT ON;
 
-  MERGE vex.customer AS vt
+  MERGE vex.customer WITH (HOLDLOCK) AS vt
 
   USING (
   
@@ -742,13 +755,15 @@ BEGIN
         ORDER BY v.customer_version_key ASC) IS NULL THEN 0
       ELSE LAST_VALUE(v.source_delete_ind) OVER (
         PARTITION BY v.customer_uid
-        ORDER BY v.customer_version_key ASC) ^ 1 
+        ORDER BY v.customer_version_key ASC
+        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) ^ 1 
       END AS version_current_ind
 
     , CASE
       WHEN LAST_VALUE(v.customer_version_key) OVER (
         PARTITION BY v.customer_uid
-        ORDER BY v.customer_version_key ASC) = v.customer_version_key THEN 1
+        ORDER BY v.customer_version_key ASC
+        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_version_key THEN 1
       ELSE 0 END AS version_latest_ind
 
     , LEAD(v.version_dtm, 1) OVER (
@@ -794,7 +809,14 @@ BEGIN
     , end_source_rev_dtmx = vs.end_source_rev_dtmx
 
 
-  WHEN NOT MATCHED BY SOURCE THEN
+  WHEN NOT MATCHED BY SOURCE
+    AND EXISTS (
+
+	    SELECT 1 FROM ver.customer vg
+	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
+      vg.customer_uid = vt.customer_uid
+
+    ) THEN
     
     DELETE
 

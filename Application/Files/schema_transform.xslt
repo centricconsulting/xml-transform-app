@@ -293,7 +293,8 @@ SELECT
       name="grain-attribute-list">
       <xsl:with-param name="column-prefix">v.</xsl:with-param>
     </xsl:call-template>
-    ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC) ^ 1 
+    ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC
+    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) ^ 1 
   END AS version_current_ind
 
 , CASE
@@ -302,7 +303,8 @@ SELECT
       name="grain-attribute-list">
     <xsl:with-param name="column-prefix">v.</xsl:with-param>
   </xsl:call-template>
-    ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC) = v.<xsl:value-of select="$table-name" />_version_key THEN 1
+    ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC
+    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.<xsl:value-of select="$table-name" />_version_key THEN 1
   ELSE 0 END AS version_latest_ind
 
 , LEAD(v.version_dtm, 1) OVER (
@@ -374,7 +376,7 @@ BEGIN
 
   SET NOCOUNT ON;
 
-  MERGE vex.<xsl:value-of select="$table-name" /> AS vt
+  MERGE vex.<xsl:value-of select="$table-name" /> WITH (HOLDLOCK) AS vt
 
   USING (
   
@@ -415,7 +417,8 @@ BEGIN
           name="grain-attribute-list">
           <xsl:with-param name="column-prefix">v.</xsl:with-param>
         </xsl:call-template>
-        ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC) ^ 1 
+        ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC
+        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) ^ 1 
       END AS version_current_ind
 
     , CASE
@@ -424,7 +427,8 @@ BEGIN
           name="grain-attribute-list">
         <xsl:with-param name="column-prefix">v.</xsl:with-param>
       </xsl:call-template>
-        ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC) = v.<xsl:value-of select="$table-name" />_version_key THEN 1
+        ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC
+        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.<xsl:value-of select="$table-name" />_version_key THEN 1
       ELSE 0 END AS version_latest_ind
 
     , LEAD(v.version_dtm, 1) OVER (
@@ -484,7 +488,19 @@ BEGIN
     , end_source_rev_dtmx = vs.end_source_rev_dtmx
 
 
-  WHEN NOT MATCHED BY SOURCE THEN
+  WHEN NOT MATCHED BY SOURCE
+    AND EXISTS (
+
+	    SELECT 1 FROM ver.<xsl:value-of select="$table-name" /> vg
+	    WHERE vg.version_batch_key >= @begin_version_batch_key AND<xsl:call-template
+          name="grain-attribute-list">
+        <xsl:with-param name="column-prefix">vg.</xsl:with-param>
+        <xsl:with-param name="second-column-prefix">vt.</xsl:with-param>
+        <xsl:with-param name="phrase-delimiter">AND</xsl:with-param>
+        <xsl:with-param name="delimit-with-cr">true</xsl:with-param>
+      </xsl:call-template>
+
+    ) THEN
     
     DELETE
 
