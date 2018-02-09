@@ -406,20 +406,14 @@ BEGIN
 
       -- XOR "^" inverts the deleted indicator
     , CASE
-      WHEN LEAD(v.<xsl:value-of select="$table-name" />_version_key, 1) OVER (
-        PARTITION BY <xsl:call-template
-          name="grain-attribute-list">
-        <xsl:with-param name="column-prefix">v.</xsl:with-param>
-      </xsl:call-template>
-        ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC) IS NULL THEN 0
-      ELSE LAST_VALUE(v.source_delete_ind) OVER (
+      WHEN LAST_VALUE(v.<xsl:value-of select="$table-name" />_version_key) OVER (
         PARTITION BY <xsl:call-template
           name="grain-attribute-list">
           <xsl:with-param name="column-prefix">v.</xsl:with-param>
         </xsl:call-template>
         ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) ^ 1 
-      END AS version_current_ind
+        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.<xsl:value-of select="$table-name" />_version_key THEN v.source_delete_ind ^ 1
+      ELSE 0 END AS version_current_indd
 
     , CASE
       WHEN LAST_VALUE(v.<xsl:value-of select="$table-name" />_version_key) OVER (

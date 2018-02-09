@@ -336,14 +336,11 @@ BEGIN
 
       -- XOR "^" inverts the deleted indicator
     , CASE
-      WHEN LEAD(v.currency_version_key, 1) OVER (
-        PARTITION BY v.currency_uid
-        ORDER BY v.currency_version_key ASC) IS NULL THEN 0
-      ELSE LAST_VALUE(v.source_delete_ind) OVER (
+      WHEN LAST_VALUE(v.currency_version_key) OVER (
         PARTITION BY v.currency_uid
         ORDER BY v.currency_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) ^ 1 
-      END AS version_current_ind
+        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.currency_version_key THEN v.source_delete_ind ^ 1
+      ELSE 0 END AS version_current_indd
 
     , CASE
       WHEN LAST_VALUE(v.currency_version_key) OVER (
@@ -750,14 +747,11 @@ BEGIN
 
       -- XOR "^" inverts the deleted indicator
     , CASE
-      WHEN LEAD(v.customer_version_key, 1) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_version_key ASC) IS NULL THEN 0
-      ELSE LAST_VALUE(v.source_delete_ind) OVER (
+      WHEN LAST_VALUE(v.customer_version_key) OVER (
         PARTITION BY v.customer_uid
         ORDER BY v.customer_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) ^ 1 
-      END AS version_current_ind
+        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_version_key THEN v.source_delete_ind ^ 1
+      ELSE 0 END AS version_current_indd
 
     , CASE
       WHEN LAST_VALUE(v.customer_version_key) OVER (
