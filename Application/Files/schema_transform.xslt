@@ -176,6 +176,12 @@ SELECT
   -- KEY COLUMNS
   vx.<xsl:value-of select="$table-name" />_key
 
+  -- GRAIN COLUMNS<xsl:apply-templates
+      select="attribute[@grain ='true']">
+          <xsl:with-param name="column-prefix">v.</xsl:with-param>
+    <xsl:with-param name="suppress-data-type">true</xsl:with-param>
+  </xsl:apply-templates>
+
   -- FOREIGN REFERENCE COLUMNS<xsl:apply-templates
       select="attribute[@class='reference' and not(@grain ='true')]">
           <xsl:with-param name="column-prefix">v.</xsl:with-param>
@@ -280,22 +286,16 @@ SELECT
   </xsl:call-template>
     ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC) AS version_index
 
-  -- XOR "^" inverts the deleted indicator
-, CASE
-  WHEN LEAD(v.<xsl:value-of select="$table-name" />_version_key, 1) OVER (
-    PARTITION BY <xsl:call-template
-      name="grain-attribute-list">
-    <xsl:with-param name="column-prefix">v.</xsl:with-param>
-  </xsl:call-template>
-    ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC) IS NULL THEN 0
-  ELSE LAST_VALUE(v.source_delete_ind) OVER (
-    PARTITION BY <xsl:call-template
-      name="grain-attribute-list">
-      <xsl:with-param name="column-prefix">v.</xsl:with-param>
-    </xsl:call-template>
-    ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC
-    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) ^ 1 
-  END AS version_current_ind
+    -- XOR "^" inverts the deleted indicator
+  , CASE
+    WHEN LAST_VALUE(v.<xsl:value-of select="$table-name" />_version_key) OVER (
+      PARTITION BY <xsl:call-template
+        name="grain-attribute-list">
+        <xsl:with-param name="column-prefix">v.</xsl:with-param>
+      </xsl:call-template>
+      ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC
+      RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.<xsl:value-of select="$table-name" />_version_key THEN v.source_delete_ind ^ 1
+    ELSE 0 END AS version_current_ind
 
 , CASE
   WHEN LAST_VALUE(v.<xsl:value-of select="$table-name" />_version_key) OVER (
@@ -413,7 +413,7 @@ BEGIN
         </xsl:call-template>
         ORDER BY v.<xsl:value-of select="$table-name" />_version_key ASC
         RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.<xsl:value-of select="$table-name" />_version_key THEN v.source_delete_ind ^ 1
-      ELSE 0 END AS version_current_indd
+      ELSE 0 END AS version_current_ind
 
     , CASE
       WHEN LAST_VALUE(v.<xsl:value-of select="$table-name" />_version_key) OVER (

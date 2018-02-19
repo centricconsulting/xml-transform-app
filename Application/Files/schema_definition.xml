@@ -3,8 +3,8 @@
 
     <!-- NOTE: Only entities named in the render element will be scripted -->
     <render all="false">
-    <entity>Customer</entity>
-    <entity>Currency</entity>
+    <entity>Sales Order Line Status History</entity>
+    
     </render>
 
     <entity name="Source" 
