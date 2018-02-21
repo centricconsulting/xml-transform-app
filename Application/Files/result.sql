@@ -1,7 +1,7 @@
 ﻿/* 
 ##################################################################################################
 ###########  INCLUDED ENTITIES:
-###############  Sales Order Line Status History
+###############  Currency
 ##################################################################################################  
 
 ##################################################################################################  
@@ -26,28 +26,28 @@ GO
 
 /*
 ##################################################################################################  
-###########  ENTITY OBJECT DEFINITIONS FOR [Sales Order Line Status History]
+###########  ENTITY OBJECT DEFINITIONS FOR [Currency]
 ##################################################################################################
 */
 
-IF OBJECT_ID(N'ver.[sales_order_line_status_history]', N'U') IS NOT NULL
-  DROP TABLE ver.[sales_order_line_status_history]
+IF OBJECT_ID(N'ver.[currency]', N'U') IS NOT NULL
+  DROP TABLE ver.[currency]
 ;
 
-CREATE TABLE ver.[sales_order_line_status_history] (
+CREATE TABLE ver.[currency] (
 
   -- VERSION IDENTITY KEY COLUMN
-  sales_order_line_status_history_version_key INT IDENTITY(1000,1)
+  currency_version_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
-, sales_order_line_uid VARCHAR(200)  NOT NULL
-, status_date DATE  NOT NULL
+ , currency_uid VARCHAR(200) NOT NULL
 
   -- FOREIGN REFERENCE COLUMNS
-, sales_order_line_status_uid VARCHAR(200)  NULL
 
   -- ATTRIBUTE COLUMNS
-, status_comment_desc VARCHAR(200)  NULL
+ , currency_code VARCHAR(20)
+ , currency_name VARCHAR(200) NOT NULL
+ , currency_symbol NVARCHAR(10)
 
   -- SOURCE COLUMNS
 , source_uid VARCHAR(200) NOT NULL
@@ -59,29 +59,29 @@ CREATE TABLE ver.[sales_order_line_status_history] (
 , version_dtm DATETIME2
 , version_batch_key INT
 
-, CONSTRAINT ver_sales_order_line_status_history_pk
-    PRIMARY KEY NONCLUSTERED (sales_order_line_status_history_version_key)
+, CONSTRAINT ver_currency_pk
+    PRIMARY KEY NONCLUSTERED (currency_version_key)
 );
 GO
 
-CREATE CLUSTERED INDEX ver_sales_order_line_status_history_cx ON
-  ver.[sales_order_line_status_history] (sales_order_line_uid, status_date);
+CREATE CLUSTERED INDEX ver_currency_cx ON
+  ver.[currency] (currency_uid);
 GO
 
 /* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-IF OBJECT_ID(N'vex.[sales_order_line_status_history]', N'U') IS NOT NULL
-DROP TABLE vex.[sales_order_line_status_history]
+IF OBJECT_ID(N'vex.[currency]', N'U') IS NOT NULL
+DROP TABLE vex.[currency]
 ;
 
-CREATE TABLE [vex].[sales_order_line_status_history] (
+CREATE TABLE [vex].[currency] (
   
   -- GENERAL NOTES: Many columns are marked as nullable in order to improve load efficiency. 
   --   This is safe, assuming that loading is only handled through dedicated procs.
 
   -- KEY COLUMNS
-  sales_order_line_status_history_version_key INT NOT NULL
-, next_sales_order_line_status_history_version_key INT NULL
-, sales_order_line_status_history_key INT NULL
+  currency_version_key INT NOT NULL
+, next_currency_version_key INT NULL
+, currency_key INT NULL
 
   -- VERSION ATTRIBUTES
 , version_index INT NULL
@@ -93,28 +93,28 @@ CREATE TABLE [vex].[sales_order_line_status_history] (
 , end_version_batch_key INT NULL
 , end_source_rev_dtmx DATETIME2 NULL
 
-, CONSTRAINT vex_sales_order_line_status_history_pk
-    PRIMARY KEY (sales_order_line_status_history_version_key)
+, CONSTRAINT vex_currency_pk
+    PRIMARY KEY (currency_version_key)
 )
 ;
 GO
 
-CREATE UNIQUE INDEX vex_sales_order_line_status_history_u1 ON
-  vex.[sales_order_line_status_history] (sales_order_line_status_history_key)
+CREATE UNIQUE INDEX vex_currency_u1 ON
+  vex.[currency] (currency_key)
   WHERE version_latest_ind = 1;
 GO
 
 /* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
 
-IF OBJECT_ID(N'dbo.[sales_order_line_status_history]', N'V') IS NOT NULL
-DROP VIEW dbo.[sales_order_line_status_history]
+IF OBJECT_ID(N'dbo.[currency]', N'V') IS NOT NULL
+DROP VIEW dbo.[currency]
 ;
 GO
 /* ################################################################################
 
-OBJECT: VIEW dbo.[sales_order_line_status_history]
+OBJECT: VIEW dbo.[currency]
 
-DESCRIPTION: Exposes the current view of the version sales_order_line_status_history table,
+DESCRIPTION: Exposes the current view of the version currency table,
   either latest or current version records.
   
 RETURN DATASET:
@@ -140,21 +140,21 @@ HISTORY:
 ################################################################################
 */
 
-CREATE VIEW dbo.[sales_order_line_status_history] AS
+CREATE VIEW dbo.[currency] AS
 SELECT 
 
   -- KEY COLUMNS
-  vx.sales_order_line_status_history_key
+  vx.currency_key
 
   -- GRAIN COLUMNS
-, v.sales_order_line_uid
-, v.status_date
+ , v.currency_uid
 
   -- FOREIGN REFERENCE COLUMNS
-, v.sales_order_line_status_uid
 
   -- ATTRIBUTE COLUMNS
-, v.status_comment_desc
+ , v.currency_code
+ , v.currency_name
+ , v.currency_symbol
 
   -- SOURCE COLUMNS
 , v.source_uid
@@ -162,7 +162,7 @@ SELECT
 , v.source_rev_actor
 
   -- VERSION COLUMNS
-, v.sales_order_line_status_history_version_key
+, v.currency_version_key
 , vx.version_index
 , v.version_dtm
 , vx.version_current_ind
@@ -171,22 +171,22 @@ SELECT
 , v.version_batch_key
 
 FROM
-ver.sales_order_line_status_history v
-INNER JOIN vex.sales_order_line_status_history vx ON
-  vx.sales_order_line_status_history_version_key = v.sales_order_line_status_history_version_key
+ver.currency v
+INNER JOIN vex.currency vx ON
+  vx.currency_version_key = v.currency_version_key
 WHERE
 vx.version_latest_ind = 1
 GO
 
 /* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
 
-IF OBJECT_ID(N'vex.[sales_order_line_status_history_settle]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[sales_order_line_status_history_settle]
+IF OBJECT_ID(N'vex.[currency_settle]', N'P') IS NOT NULL
+DROP PROCEDURE vex.[currency_settle]
 ;
 GO
 /* ################################################################################
 
-OBJECT: vex.[sales_order_line_status_history_settle]
+OBJECT: vex.[currency_settle]
 
 DESCRIPTION: Truncates corresponding VEX table and reloads it using settle logic.
 
@@ -206,17 +206,17 @@ Date        Name            Version  Description
 
 ################################################################################ */
 
-CREATE PROCEDURE vex.[sales_order_line_status_history_settle] AS
+CREATE PROCEDURE vex.[currency_settle] AS
 BEGIN
 
 SET NOCOUNT ON;
 
-TRUNCATE TABLE vex.[sales_order_line_status_history];
+TRUNCATE TABLE vex.[currency];
 
-INSERT INTO vex.[sales_order_line_status_history] (
-  sales_order_line_status_history_version_key
-, next_sales_order_line_status_history_version_key
-, sales_order_line_status_history_key
+INSERT INTO vex.[currency] (
+  currency_version_key
+, next_currency_version_key
+, currency_key
 , version_index
 , version_current_ind
 , version_latest_ind
@@ -226,49 +226,49 @@ INSERT INTO vex.[sales_order_line_status_history] (
 )
 SELECT
 
-  v.sales_order_line_status_history_version_key
+  v.currency_version_key
 
-, LEAD(v.sales_order_line_status_history_version_key, 1) OVER (
-    PARTITION BY v.sales_order_line_uid, v.status_date
-    ORDER BY v.sales_order_line_status_history_version_key ASC) AS next_sales_order_line_status_history_version_key
+, LEAD(v.currency_version_key, 1) OVER (
+    PARTITION BY v.currency_uid
+    ORDER BY v.currency_version_key ASC) AS next_currency_version_key
 
-, MIN(v.sales_order_line_status_history_version_key) OVER (
-    PARTITION BY v.sales_order_line_uid, v.status_date) AS sales_order_line_status_history_key
+, MIN(v.currency_version_key) OVER (
+    PARTITION BY v.currency_uid) AS currency_key
 
 , ROW_NUMBER() OVER (
-    PARTITION BY v.sales_order_line_uid, v.status_date
-    ORDER BY v.sales_order_line_status_history_version_key ASC) AS version_index
+    PARTITION BY v.currency_uid
+    ORDER BY v.currency_version_key ASC) AS version_index
 
     -- XOR "^" inverts the deleted indicator
   , CASE
-    WHEN LAST_VALUE(v.sales_order_line_status_history_version_key) OVER (
-      PARTITION BY v.sales_order_line_uid, v.status_date
-      ORDER BY v.sales_order_line_status_history_version_key ASC
-      RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_line_status_history_version_key THEN v.source_delete_ind ^ 1
+    WHEN LAST_VALUE(v.currency_version_key) OVER (
+      PARTITION BY v.currency_uid
+      ORDER BY v.currency_version_key ASC
+      RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.currency_version_key THEN v.source_delete_ind ^ 1
     ELSE 0 END AS version_current_ind
 
 , CASE
-  WHEN LAST_VALUE(v.sales_order_line_status_history_version_key) OVER (
-    PARTITION BY v.sales_order_line_uid, v.status_date
-    ORDER BY v.sales_order_line_status_history_version_key ASC
-    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_line_status_history_version_key THEN 1
+  WHEN LAST_VALUE(v.currency_version_key) OVER (
+    PARTITION BY v.currency_uid
+    ORDER BY v.currency_version_key ASC
+    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.currency_version_key THEN 1
   ELSE 0 END AS version_latest_ind
 
 , LEAD(v.version_dtm, 1) OVER (
-    PARTITION BY v.sales_order_line_uid, v.status_date
-    ORDER BY v.sales_order_line_status_history_version_key ASC) AS end_version_dtmx
+    PARTITION BY v.currency_uid
+    ORDER BY v.currency_version_key ASC) AS end_version_dtmx
 
   -- Back the LEAD batch key off by 1
 , LEAD(v.version_batch_key, 1) OVER (
-    PARTITION BY v.sales_order_line_uid, v.status_date
-    ORDER BY v.sales_order_line_status_history_version_key ASC) - 1 AS end_version_batch_key
+    PARTITION BY v.currency_uid
+    ORDER BY v.currency_version_key ASC) - 1 AS end_version_batch_key
 
 , LEAD(v.source_rev_dtm, 1) OVER (
-    PARTITION BY v.sales_order_line_uid, v.status_date
-    ORDER BY v.sales_order_line_status_history_version_key ASC) AS end_source_rev_dtmx
+    PARTITION BY v.currency_uid
+    ORDER BY v.currency_version_key ASC) AS end_source_rev_dtmx
 
 FROM
-ver.sales_order_line_status_history v
+ver.currency v
 
 END;
 GO
@@ -276,13 +276,13 @@ GO
 
 /* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
 
-IF OBJECT_ID(N'vex.[sales_order_line_status_history_settle_merge]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[sales_order_line_status_history_settle_merge]
+IF OBJECT_ID(N'vex.[currency_settle_merge]', N'P') IS NOT NULL
+DROP PROCEDURE vex.[currency_settle_merge]
 ;
 GO
 /* ################################################################################
 
-OBJECT: vex.[sales_order_line_status_history_settle_merge]
+OBJECT: vex.[currency_settle_merge]
 
 DESCRIPTION: Performs a merge of all version records related to grain values that have been affected
   on or after the specified batch key.
@@ -307,83 +307,82 @@ HISTORY:
 
 ################################################################################ */
 
-CREATE PROCEDURE vex.[sales_order_line_status_history_settle_merge] 
+CREATE PROCEDURE vex.[currency_settle_merge] 
   @begin_version_batch_key INT
 AS
 BEGIN
 
   SET NOCOUNT ON;
 
-  MERGE vex.sales_order_line_status_history WITH (HOLDLOCK) AS vt
+  MERGE vex.currency WITH (HOLDLOCK) AS vt
 
   USING (
   
     SELECT
 
-      v.sales_order_line_status_history_version_key
+      v.currency_version_key
 
-    , LEAD(v.sales_order_line_status_history_version_key, 1) OVER (
-        PARTITION BY v.sales_order_line_uid, v.status_date
-        ORDER BY v.sales_order_line_status_history_version_key ASC) AS next_sales_order_line_status_history_version_key
+    , LEAD(v.currency_version_key, 1) OVER (
+        PARTITION BY v.currency_uid
+        ORDER BY v.currency_version_key ASC) AS next_currency_version_key
 
-    , MIN(v.sales_order_line_status_history_version_key) OVER (
-        PARTITION BY v.sales_order_line_uid, v.status_date) AS sales_order_line_status_history_key
+    , MIN(v.currency_version_key) OVER (
+        PARTITION BY v.currency_uid) AS currency_key
 
     , ROW_NUMBER() OVER (
-        PARTITION BY v.sales_order_line_uid, v.status_date
-        ORDER BY v.sales_order_line_status_history_version_key ASC) AS version_index
+        PARTITION BY v.currency_uid
+        ORDER BY v.currency_version_key ASC) AS version_index
 
       -- XOR "^" inverts the deleted indicator
     , CASE
-      WHEN LAST_VALUE(v.sales_order_line_status_history_version_key) OVER (
-        PARTITION BY v.sales_order_line_uid, v.status_date
-        ORDER BY v.sales_order_line_status_history_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_line_status_history_version_key THEN v.source_delete_ind ^ 1
+      WHEN LAST_VALUE(v.currency_version_key) OVER (
+        PARTITION BY v.currency_uid
+        ORDER BY v.currency_version_key ASC
+        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.currency_version_key THEN v.source_delete_ind ^ 1
       ELSE 0 END AS version_current_ind
 
     , CASE
-      WHEN LAST_VALUE(v.sales_order_line_status_history_version_key) OVER (
-        PARTITION BY v.sales_order_line_uid, v.status_date
-        ORDER BY v.sales_order_line_status_history_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_line_status_history_version_key THEN 1
+      WHEN LAST_VALUE(v.currency_version_key) OVER (
+        PARTITION BY v.currency_uid
+        ORDER BY v.currency_version_key ASC
+        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.currency_version_key THEN 1
       ELSE 0 END AS version_latest_ind
 
     , LEAD(v.version_dtm, 1) OVER (
-        PARTITION BY v.sales_order_line_uid, v.status_date
-        ORDER BY v.sales_order_line_status_history_version_key ASC) AS end_version_dtmx
+        PARTITION BY v.currency_uid
+        ORDER BY v.currency_version_key ASC) AS end_version_dtmx
 
       -- Back the LEAD batch key off by 1
     , LEAD(v.version_batch_key, 1) OVER (
-        PARTITION BY v.sales_order_line_uid, v.status_date
-        ORDER BY v.sales_order_line_status_history_version_key ASC) - 1 AS end_version_batch_key
+        PARTITION BY v.currency_uid
+        ORDER BY v.currency_version_key ASC) - 1 AS end_version_batch_key
 
     , LEAD(v.source_rev_dtm, 1) OVER (
-        PARTITION BY v.sales_order_line_uid, v.status_date
-        ORDER BY v.sales_order_line_status_history_version_key ASC) AS end_source_rev_dtmx
+        PARTITION BY v.currency_uid
+        ORDER BY v.currency_version_key ASC) AS end_source_rev_dtmx
 
     FROM
-    ver.sales_order_line_status_history v
+    ver.currency v
     WHERE
     EXISTS (
 
-	    SELECT 1 FROM ver.sales_order_line_status_history vg
+	    SELECT 1 FROM ver.currency vg
 	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
-      vg.sales_order_line_uid = v.sales_order_line_uid
-      AND vg.status_date = v.status_date
+      vg.currency_uid = v.currency_uid
 
     )
 
   ) AS vs
 
-  ON vs.sales_order_line_status_history_version_key = vt.sales_order_line_status_history_version_key 
+  ON vs.currency_version_key = vt.currency_version_key 
 
   WHEN MATCHED
-    AND COALESCE(vs.next_sales_order_line_status_history_version_key, -1) != 
-      COALESCE(vt.next_sales_order_line_status_history_version_key, -1) THEN
+    AND COALESCE(vs.next_currency_version_key, -1) != 
+      COALESCE(vt.next_currency_version_key, -1) THEN
 
     UPDATE SET
-      next_sales_order_line_status_history_version_key = vs.next_sales_order_line_status_history_version_key
-    , sales_order_line_status_history_key = vs.sales_order_line_status_history_key
+      next_currency_version_key = vs.next_currency_version_key
+    , currency_key = vs.currency_key
     , version_index = vs.version_index
     , version_current_ind = vs.version_current_ind
     , version_latest_ind = vs.version_latest_ind
@@ -395,10 +394,9 @@ BEGIN
   WHEN NOT MATCHED BY SOURCE
     AND EXISTS (
 
-	    SELECT 1 FROM ver.sales_order_line_status_history vg
+	    SELECT 1 FROM ver.currency vg
 	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
-      vg.sales_order_line_uid = vt.sales_order_line_uid
-      AND vg.status_date = vt.status_date
+      vg.currency_uid = vt.currency_uid
 
     ) THEN
     
@@ -407,9 +405,9 @@ BEGIN
   WHEN NOT MATCHED BY TARGET THEN
 
     INSERT (
-      sales_order_line_status_history_version_key
-    , next_sales_order_line_status_history_version_key
-    , sales_order_line_status_history_key
+      currency_version_key
+    , next_currency_version_key
+    , currency_key
     , version_index
     , version_current_ind
     , version_latest_ind
@@ -417,9 +415,9 @@ BEGIN
     , end_version_batch_key
     , end_source_rev_dtmx
     )  VALUES (
-      vs.sales_order_line_status_history_version_key
-    , vs.next_sales_order_line_status_history_version_key
-    , vs.sales_order_line_status_history_key
+      vs.currency_version_key
+    , vs.next_currency_version_key
+    , vs.currency_key
     , vs.version_index
     , vs.version_current_ind
     , vs.version_latest_ind
