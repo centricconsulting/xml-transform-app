@@ -2,29 +2,32 @@
 <SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="Centric.XmlTransform.Properties" GeneratedClassName="Settings">
   <Profiles />
   <Settings>
-    <Setting Name="TransformFile" Type="System.String" Scope="User">
+    <Setting Name="TransformFilePath" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
-    <Setting Name="OutputFile" Type="System.String" Scope="User">
+    <Setting Name="TargetFilePath" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
-    <Setting Name="Overwrite" Type="System.Boolean" Scope="User">
+    <Setting Name="OverwriteTarget" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>
-    <Setting Name="AppInstruction" Type="System.String" Scope="User">
+    <Setting Name="PostTransformInstruction" Type="System.String" Scope="User">
+      <Value Profile="(Default)">"None"</Value>
+    </Setting>
+    <Setting Name="TargetApplicationFilePath" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
-    <Setting Name="AppFile" Type="System.String" Scope="User">
+    <Setting Name="DefinitionFilePath" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
-    <Setting Name="DefinitionFile" Type="System.String" Scope="User">
-      <Value Profile="(Default)" />
-    </Setting>
-    <Setting Name="TransformAuto" Type="System.Boolean" Scope="User">
+    <Setting Name="TransformDragDrop" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>
-    <Setting Name="UpdateTimestamp" Type="System.DateTime" Scope="User">
+    <Setting Name="RootTagName" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="GenerateXml" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
     </Setting>
   </Settings>
 </SettingsFile>

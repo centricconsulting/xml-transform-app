@@ -45,6 +45,7 @@
       this.OutputAppRadioCustom = new System.Windows.Forms.RadioButton();
       this.OutputAppRadioDefault = new System.Windows.Forms.RadioButton();
       this.OutputAppRadioNone = new System.Windows.Forms.RadioButton();
+      this.GenerateXmlCheckbox = new System.Windows.Forms.CheckBox();
       this.OverwriteCheckBox = new System.Windows.Forms.CheckBox();
       this.OutputFileButton = new System.Windows.Forms.Button();
       this.OutputFileText = new System.Windows.Forms.TextBox();
@@ -73,7 +74,7 @@
       this.TransformGroup.Size = new System.Drawing.Size(840, 65);
       this.TransformGroup.TabIndex = 10;
       this.TransformGroup.TabStop = false;
-      this.TransformGroup.Text = "Transformation XSL";
+      this.TransformGroup.Text = "Transformation Xslt";
       // 
       // TransformFileButton
       // 
@@ -94,6 +95,7 @@
       this.TransformFileText.Name = "TransformFileText";
       this.TransformFileText.Size = new System.Drawing.Size(661, 21);
       this.TransformFileText.TabIndex = 1;
+      this.TransformFileText.TextChanged += new System.EventHandler(this.TransformFileText_TextChanged);
       // 
       // TransformFileLabel
       // 
@@ -117,7 +119,7 @@
       this.DefinitionGroup.Size = new System.Drawing.Size(840, 96);
       this.DefinitionGroup.TabIndex = 11;
       this.DefinitionGroup.TabStop = false;
-      this.DefinitionGroup.Text = "Definition XML";
+      this.DefinitionGroup.Text = "Definition Xml or Json";
       // 
       // DefinitionFileDropCheckBox
       // 
@@ -131,6 +133,7 @@
       this.DefinitionFileDropCheckBox.TabIndex = 14;
       this.DefinitionFileDropCheckBox.Text = "T&ransform automatically after drag-and-drop";
       this.DefinitionFileDropCheckBox.UseVisualStyleBackColor = true;
+      this.DefinitionFileDropCheckBox.CheckedChanged += new System.EventHandler(this.DefinitionFileDropCheckBox_CheckedChanged);
       // 
       // DefinitionFileButton
       // 
@@ -151,6 +154,7 @@
       this.DefinitionFileText.Name = "DefinitionFileText";
       this.DefinitionFileText.Size = new System.Drawing.Size(664, 21);
       this.DefinitionFileText.TabIndex = 12;
+      this.DefinitionFileText.TextChanged += new System.EventHandler(this.DefinitionFileText_TextChanged);
       // 
       // DefinitionFileLabel
       // 
@@ -170,6 +174,7 @@
       this.OutputGroup.Controls.Add(this.OutputAppRadioCustom);
       this.OutputGroup.Controls.Add(this.OutputAppRadioDefault);
       this.OutputGroup.Controls.Add(this.OutputAppRadioNone);
+      this.OutputGroup.Controls.Add(this.GenerateXmlCheckbox);
       this.OutputGroup.Controls.Add(this.OverwriteCheckBox);
       this.OutputGroup.Controls.Add(this.OutputFileButton);
       this.OutputGroup.Controls.Add(this.OutputFileText);
@@ -252,6 +257,21 @@
       this.OutputAppRadioNone.Text = "Do &not automatically open";
       this.OutputAppRadioNone.UseVisualStyleBackColor = true;
       // 
+      // GenerateXmlCheckbox
+      // 
+      this.GenerateXmlCheckbox.AutoSize = true;
+      this.GenerateXmlCheckbox.Checked = true;
+      this.GenerateXmlCheckbox.CheckState = System.Windows.Forms.CheckState.Checked;
+      this.GenerateXmlCheckbox.Enabled = false;
+      this.GenerateXmlCheckbox.Font = new System.Drawing.Font("Verdana", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+      this.GenerateXmlCheckbox.Location = new System.Drawing.Point(296, 58);
+      this.GenerateXmlCheckbox.Name = "GenerateXmlCheckbox";
+      this.GenerateXmlCheckbox.Size = new System.Drawing.Size(134, 17);
+      this.GenerateXmlCheckbox.TabIndex = 5;
+      this.GenerateXmlCheckbox.Text = "Generate Json Xml";
+      this.GenerateXmlCheckbox.UseVisualStyleBackColor = true;
+      this.GenerateXmlCheckbox.CheckedChanged += new System.EventHandler(this.GenerateXmlCheckbox_CheckedChanged);
+      // 
       // OverwriteCheckBox
       // 
       this.OverwriteCheckBox.AutoSize = true;
@@ -264,6 +284,7 @@
       this.OverwriteCheckBox.TabIndex = 5;
       this.OverwriteCheckBox.Text = "O&verwrite Existing File";
       this.OverwriteCheckBox.UseVisualStyleBackColor = true;
+      this.OverwriteCheckBox.CheckedChanged += new System.EventHandler(this.OverwriteCheckBox_CheckedChanged);
       // 
       // OutputFileButton
       // 
@@ -284,6 +305,7 @@
       this.OutputFileText.Name = "OutputFileText";
       this.OutputFileText.Size = new System.Drawing.Size(664, 21);
       this.OutputFileText.TabIndex = 3;
+      this.OutputFileText.TextChanged += new System.EventHandler(this.OutputFileText_TextChanged);
       // 
       // OutputFileLabel
       // 
@@ -333,10 +355,10 @@
       this.InstructionLabel.AutoSize = true;
       this.InstructionLabel.Location = new System.Drawing.Point(12, 20);
       this.InstructionLabel.Name = "InstructionLabel";
-      this.InstructionLabel.Size = new System.Drawing.Size(678, 13);
+      this.InstructionLabel.Size = new System.Drawing.Size(722, 13);
       this.InstructionLabel.TabIndex = 16;
-      this.InstructionLabel.Text = "Transform an XML definition file with XSLT.   Drag-drop a definition file on the " +
-    "form to set a new current definition file.";
+      this.InstructionLabel.Text = "Transform an Xml or Json definition file with XSLT.   Drag-drop a definition file" +
+    " on the form to set a new current definition file.";
       // 
       // AppFileDialog
       // 
@@ -372,7 +394,7 @@
       this.MaximizeBox = false;
       this.Name = "MainForm";
       this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-      this.Text = "Centric XML Transform";
+      this.Text = "Centric Xml Transform";
       this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.MainForm_FormClosing);
       this.Load += new System.EventHandler(this.MainForm_Load);
       this.DragDrop += new System.Windows.Forms.DragEventHandler(this.MainForm_DragDrop);
@@ -418,6 +440,7 @@
     private System.Windows.Forms.Button OpenOutputFileButton;
     private System.Windows.Forms.OpenFileDialog AppFileDialog;
     private System.Windows.Forms.Label TransformDateLabel;
+    private System.Windows.Forms.CheckBox GenerateXmlCheckbox;
   }
 }
 

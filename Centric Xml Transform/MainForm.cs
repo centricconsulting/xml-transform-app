@@ -19,62 +19,31 @@ namespace Centric.XmlTransform
       InitializeComponent();
     }
 
-
     private void MainForm_Load(object sender, EventArgs e)
     {
-      ReadUserSettings();
+      this.ReadUserSettings();
+    }
+
+    private void CloseButton_Click(object sender, EventArgs e)
+    {
+      this.Close();
+    }
+
+    private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
+    {
+      SaveUserSettings();
     }
 
     private void TransformButton_Click(object sender, EventArgs e)
     {
-      ExecuteTransform();
+      this.ExecuteTransform();
     }
 
     private void ExecuteTransform()
     {
 
-      // validate file paths
-      if(!SchemaTransform.FileExists(TransformFileText.Text))
-      {
-          MessageBox.Show(this, "The transform file is invalid or does not exist.", "Invalid Transform File",
-            MessageBoxButtons.OK, MessageBoxIcon.Stop);
-          return;
-      }
-
-
-      string ErrorMessage = null;
-
-      if (!SchemaTransform.XslValidate(TransformFileText.Text, out ErrorMessage))
-      {
-        MessageBox.Show(this, "The transform file is not a valid XSL format..\r\n\r\n" + ErrorMessage, "Invalid Transform File",
-          MessageBoxButtons.OK, MessageBoxIcon.Stop);
-        return;
-      }
-
-      if (!SchemaTransform.FolderExists(OutputFileText.Text))
-      {
-        MessageBox.Show(this, "The output folder is invalid or does not exist.", "Invalid Output Path", 
-          MessageBoxButtons.OK, MessageBoxIcon.Stop);
-        return;
-      }
-
-      if (!SchemaTransform.FileExists(DefinitionFileText.Text))
-      {
-        MessageBox.Show(this, "The definition file is invalid or does not exist.", "Invalid Definition File",
-          MessageBoxButtons.OK, MessageBoxIcon.Stop);
-        return;
-      }
-
-
-      if (!SchemaTransform.XmlValidate(DefinitionFileText.Text, out ErrorMessage))
-      {
-        MessageBox.Show(this, "The definition file is not a valid XML format.\r\n\r\n" + ErrorMessage, "Invalid Definition File",
-          MessageBoxButtons.OK, MessageBoxIcon.Stop);
-        return;
-      }
-
       // force selection of new output path in overwrite condition
-      if (!OverwriteCheckBox.Checked && SchemaTransform.FileExists(OutputFileText.Text))
+      if (!OverwriteCheckBox.Checked && ProgramController.FileExists(Program.Controller.TargetFilePath))
       {
         string NewOutputFilePath = OutputFileText.Text;
         DialogResult result = DialogResult.Cancel;
@@ -96,30 +65,23 @@ namespace Centric.XmlTransform
       }
 
       // execute transform
-      try
+      if (!Program.Controller.ExecuteTransform(out string Message))
       {
-
-        SchemaTransform.Execute(DefinitionFileText.Text, TransformFileText.Text, OutputFileText.Text);
-
-      } catch(Exception ex)
-      {
-
-        MessageBox.Show(this, "Transformation failed with the following message: " + ex.Message, "Transformation Failed",
+        MessageBox.Show(this, "Transformation failed with the following message:\r\n\r\n" + Message, "Transformation Failed",
           MessageBoxButtons.OK, MessageBoxIcon.Error);
 
         return;
-
       }
 
-      TransformDateLabel.Text = string.Format("Last transformation completed: {0}", 
+      // update the date label
+      TransformDateLabel.Text = string.Format("Last transformation completed: {0}",
         DateTime.Now.ToString("hh:mm:ss tt, MMMM d, yyyy", CultureInfo.InvariantCulture));
 
       // open output file in application
-      if(!OutputAppRadioNone.Checked)
-      {
-        OpenOutputFile();
-      }
+      if(!OutputAppRadioNone.Checked) OpenOutputFile();
     }
+
+    #region File Selection
 
     private void OpenOutputFileButton_Click(object sender, EventArgs e)
     {
@@ -131,12 +93,11 @@ namespace Centric.XmlTransform
 
       Process AppProcess = new Process();
       
-
       if (OutputAppRadioCustom.Checked)
       {
 
         // validate file paths
-        if (!SchemaTransform.FileExists(AppFileText.Text))
+        if (!ProgramController.FileExists(AppFileText.Text))
         {
           MessageBox.Show(this, "The application path is invalid or does not exist.", "Invalid Application",
             MessageBoxButtons.OK, MessageBoxIcon.Stop);
@@ -144,7 +105,7 @@ namespace Centric.XmlTransform
         }
 
         AppProcess.StartInfo.FileName = AppFileText.Text; 
-        AppProcess.StartInfo.Arguments = OutputFileText.Text;
+        AppProcess.StartInfo.Arguments = "\"" + OutputFileText.Text + "\"";
         AppProcess.Start();
 
       } else 
@@ -167,16 +128,21 @@ namespace Centric.XmlTransform
       }
     }
 
+    private void TransformFileText_TextChanged(object sender, EventArgs e)
+    {
+      Program.Controller.TransformFilePath = TransformFileText.Text.Trim();
+    }
+
     private DialogResult ShowTransformFileDialog(ref string CurrentFilePath)
     {
 
       TransformFileDialog.Title = "Select Transformation File";
       TransformFileDialog.CheckPathExists = true;
       TransformFileDialog.CheckFileExists = true;
-      TransformFileDialog.InitialDirectory = SchemaTransform.GetPath(CurrentFilePath);
+      TransformFileDialog.InitialDirectory = ProgramController.GetPath(CurrentFilePath);
       TransformFileDialog.Filter = "XSL Files (*.xsl; *.xslt) | *.xsl; *.xslt | All Files (*.*) | *.*";
       TransformFileDialog.FilterIndex = 2;
-      TransformFileDialog.FileName = SchemaTransform.GetFileName(CurrentFilePath);
+      TransformFileDialog.FileName = ProgramController.GetFileName(CurrentFilePath);
 
       DialogResult result = TransformFileDialog.ShowDialog(this);
 
@@ -199,6 +165,11 @@ namespace Centric.XmlTransform
       }
     }
 
+    private void OutputFileText_TextChanged(object sender, EventArgs e)
+    {
+      Program.Controller.TargetFilePath = OutputFileText.Text.Trim();
+    }
+
     private DialogResult ShowOutputFileDialog(ref string CurrentFilePath)
     {
       OutputFileDialog.Title = "Specify Output File";
@@ -206,7 +177,7 @@ namespace Centric.XmlTransform
       OutputFileDialog.CheckFileExists = false;
       OutputFileDialog.OverwritePrompt = false;
 
-      OutputFileDialog.InitialDirectory = SchemaTransform.GetPath(CurrentFilePath);
+      OutputFileDialog.InitialDirectory = ProgramController.GetPath(CurrentFilePath);
       string CleanFileType = null;
 
       if (CurrentFilePath == null)
@@ -216,13 +187,13 @@ namespace Centric.XmlTransform
       }
       else
       {
-        CleanFileType = SchemaTransform.GetCleanFileType(CurrentFilePath);
+        CleanFileType = ProgramController.GetCleanFileType(CurrentFilePath);
         OutputFileDialog.DefaultExt = CleanFileType;
         OutputFileDialog.Filter = "Output Files (*." + CleanFileType + ") | *." + CleanFileType + " | All Files (*.*) | *.*";
         OutputFileDialog.FilterIndex = 2;
       }
 
-      OutputFileDialog.FileName = SchemaTransform.GetFileName(CurrentFilePath);
+      OutputFileDialog.FileName = ProgramController.GetFileName(CurrentFilePath);
 
       DialogResult result = OutputFileDialog.ShowDialog(this);
 
@@ -253,15 +224,15 @@ namespace Centric.XmlTransform
       AppFileDialog.CheckFileExists = true;
       if(CurrentFilePath == null || CurrentFilePath.Trim().Length == 0)
       {
-        AppFileDialog.InitialDirectory = SchemaTransform.GetProgramFilesPath();
+        AppFileDialog.InitialDirectory = ProgramController.GetProgramFilesPath();
       } else
       {
-        AppFileDialog.InitialDirectory = SchemaTransform.GetPath(CurrentFilePath);
+        AppFileDialog.InitialDirectory = ProgramController.GetPath(CurrentFilePath);
       }
       
       AppFileDialog.Filter = "Executable Files (*.exe) | *.exe| All Files (*.*) | *.*";
       AppFileDialog.FilterIndex = 2;
-      AppFileDialog.FileName = SchemaTransform.GetFileName(CurrentFilePath);
+      AppFileDialog.FileName = ProgramController.GetFileName(CurrentFilePath);
 
       DialogResult result = AppFileDialog.ShowDialog(this);
 
@@ -283,17 +254,24 @@ namespace Centric.XmlTransform
         DefinitionFileText.Text = FilePath;
       }
     }
-    
+
+    private void DefinitionFileText_TextChanged(object sender, EventArgs e)
+    {
+      Program.Controller.DefinitionFilePath = DefinitionFileText.Text.Trim();
+      GenerateXmlCheckbox.Enabled = Program.Controller.DefinitionFileIsJson;
+
+    }
+
     private DialogResult ShowDefinitionFileDialog(ref string CurrentFilePath)
     {
 
       DefinitionFileDialog.Title = "Select Definition File";
       DefinitionFileDialog.CheckPathExists = true;
       DefinitionFileDialog.CheckFileExists = true;
-      DefinitionFileDialog.InitialDirectory = SchemaTransform.GetPath(CurrentFilePath);
-      DefinitionFileDialog.Filter = "XML Files (*.xml) | *.xml | All Files (*.*) | *.*";
-      DefinitionFileDialog.FilterIndex = 2;
-      DefinitionFileDialog.FileName = SchemaTransform.GetFileName(CurrentFilePath);
+      DefinitionFileDialog.InitialDirectory = ProgramController.GetPath(CurrentFilePath);
+      DefinitionFileDialog.Filter = "XML Files (*.xml) | *.xml | Json Files (*.json) | *.json | StarUML Files | *.mdj | All Files (*.*) | *.*";
+      DefinitionFileDialog.FilterIndex = 4;
+      DefinitionFileDialog.FileName = ProgramController.GetFileName(CurrentFilePath);
 
       DialogResult result = DefinitionFileDialog.ShowDialog(this);
 
@@ -305,10 +283,24 @@ namespace Centric.XmlTransform
       return result;
     }
 
+    #endregion
 
-    private void CloseButton_Click(object sender, EventArgs e)
+    #region Drag Drop and Checkbox Logic
+
+
+    private void DefinitionFileDropCheckBox_CheckedChanged(object sender, EventArgs e)
     {
-      this.Close();
+      Program.Controller.TransformDragDrop = DefinitionFileDropCheckBox.Checked;
+    }
+
+    private void OverwriteCheckBox_CheckedChanged(object sender, EventArgs e)
+    {
+      Program.Controller.OverwriteTarget = OverwriteCheckBox.Checked;
+    }
+
+    private void GenerateXmlCheckbox_CheckedChanged(object sender, EventArgs e)
+    {
+      Program.Controller.GenerateXml = GenerateXmlCheckbox.Checked;
     }
 
     private void MainForm_DragEnter(object sender, DragEventArgs e)
@@ -328,7 +320,7 @@ namespace Centric.XmlTransform
       }
 
       string FilePath = files[0];
-      if (SchemaTransform.FileExists(FilePath))
+      if (ProgramController.FileExists(FilePath))
       {
         DefinitionFileText.Text = FilePath;
 
@@ -346,69 +338,66 @@ namespace Centric.XmlTransform
       }
     }
 
-    private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
-    {
-      SaveUserSettings();
-    }
+    #endregion
+
+    #region Settings
 
     private void SaveUserSettings()
     {
 
-      Properties.Settings.Default.UpdateTimestamp = DateTime.Now;
-      Properties.Settings.Default.TransformFile = TransformFileText.Text;
-      Properties.Settings.Default.OutputFile = OutputFileText.Text;
-      Properties.Settings.Default.Overwrite = OverwriteCheckBox.Checked;
-      Properties.Settings.Default.AppFile = AppFileText.Text;
-      Properties.Settings.Default.DefinitionFile = DefinitionFileText.Text;
-      Properties.Settings.Default.TransformAuto = DefinitionFileDropCheckBox.Checked;
+      Program.Controller.TransformFilePath  = TransformFileText.Text;
+      Program.Controller.TargetFilePath = OutputFileText.Text;
+      Program.Controller.OverwriteTarget = OverwriteCheckBox.Checked;
+      Program.Controller.TargetApplicationFilePath = AppFileText.Text;
+      Program.Controller.DefinitionFilePath = DefinitionFileText.Text;
+      Program.Controller.TransformDragDrop = DefinitionFileDropCheckBox.Checked;
+      Program.Controller.GenerateXml = GenerateXmlCheckbox.Checked;
 
-      if (OutputAppRadioNone.Checked)
+      if(OutputAppRadioNone.Checked)
       {
-        Properties.Settings.Default.AppInstruction = "None";
-
-      } else if (OutputAppRadioDefault.Checked)
+        Program.Controller.PostTransformInstruction = "None";
+      }
+      else if (OutputAppRadioDefault.Checked)
       {
-        Properties.Settings.Default.AppInstruction = "Default";
+        Program.Controller.PostTransformInstruction = "Default";
 
       } else if (OutputAppRadioCustom.Checked)
       {
-        Properties.Settings.Default.AppInstruction = "Custom";
+        Program.Controller.PostTransformInstruction = "Custom";
       }
-
-      Properties.Settings.Default.Save();
-
     }
 
     private void ReadUserSettings()
     {
-      // check if user settings exist before reading
-      DateTime test = Properties.Settings.Default.UpdateTimestamp;
 
-      if (test >= new DateTime(2000,1,1)) 
+      TransformFileText.Text = Program.Controller.TransformFilePath;
+      OutputFileText.Text = Program.Controller.TargetFilePath;
+      OverwriteCheckBox.Checked = Program.Controller.OverwriteTarget;
+      AppFileText.Text = Program.Controller.TargetApplicationFilePath;
+      DefinitionFileText.Text = Program.Controller.DefinitionFilePath;
+      DefinitionFileDropCheckBox.Checked = Program.Controller.TransformDragDrop;
+      GenerateXmlCheckbox.Checked = Program.Controller.GenerateXml;
+
+      switch (Program.Controller.PostTransformInstruction)
       {
-        TransformFileText.Text = Properties.Settings.Default.TransformFile;
-        OutputFileText.Text = Properties.Settings.Default.OutputFile;
-        OverwriteCheckBox.Checked = Properties.Settings.Default.Overwrite;
-        AppFileText.Text = Properties.Settings.Default.AppFile;
-        DefinitionFileText.Text = Properties.Settings.Default.DefinitionFile;
-        DefinitionFileDropCheckBox.Checked = Properties.Settings.Default.TransformAuto;
-
-        switch (Properties.Settings.Default.AppInstruction)
-        {
-          case "None":
-            OutputAppRadioNone.Checked = true;
-            break;
-          case "Default":
-            OutputAppRadioDefault.Checked = true;
-            break;
-          case "Custom":
-            OutputAppRadioCustom.Checked = true;
-            break;
-          default:
-            break;
-        }
+        case "None":
+          OutputAppRadioNone.Checked = true;
+          break;
+        case "Default":
+          OutputAppRadioDefault.Checked = true;
+          break;
+        case "Custom":
+          OutputAppRadioCustom.Checked = true;
+          break;
+        default:
+          break;
       }
     }
+
+    #endregion
+
+
+
 
   }
 }

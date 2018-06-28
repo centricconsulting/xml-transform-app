@@ -26,95 +26,108 @@ namespace Centric.XmlTransform.Properties {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("")]
-        public string TransformFile {
+        public string TransformFilePath {
             get {
-                return ((string)(this["TransformFile"]));
+                return ((string)(this["TransformFilePath"]));
             }
             set {
-                this["TransformFile"] = value;
+                this["TransformFilePath"] = value;
             }
         }
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("")]
-        public string OutputFile {
+        public string TargetFilePath {
             get {
-                return ((string)(this["OutputFile"]));
+                return ((string)(this["TargetFilePath"]));
             }
             set {
-                this["OutputFile"] = value;
+                this["TargetFilePath"] = value;
             }
         }
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("False")]
-        public bool Overwrite {
+        public bool OverwriteTarget {
             get {
-                return ((bool)(this["Overwrite"]));
+                return ((bool)(this["OverwriteTarget"]));
             }
             set {
-                this["Overwrite"] = value;
+                this["OverwriteTarget"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("\"None\"")]
+        public string PostTransformInstruction {
+            get {
+                return ((string)(this["PostTransformInstruction"]));
+            }
+            set {
+                this["PostTransformInstruction"] = value;
             }
         }
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("")]
-        public string AppInstruction {
+        public string TargetApplicationFilePath {
             get {
-                return ((string)(this["AppInstruction"]));
+                return ((string)(this["TargetApplicationFilePath"]));
             }
             set {
-                this["AppInstruction"] = value;
+                this["TargetApplicationFilePath"] = value;
             }
         }
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("")]
-        public string AppFile {
+        public string DefinitionFilePath {
             get {
-                return ((string)(this["AppFile"]));
+                return ((string)(this["DefinitionFilePath"]));
             }
             set {
-                this["AppFile"] = value;
-            }
-        }
-        
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("")]
-        public string DefinitionFile {
-            get {
-                return ((string)(this["DefinitionFile"]));
-            }
-            set {
-                this["DefinitionFile"] = value;
+                this["DefinitionFilePath"] = value;
             }
         }
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("False")]
-        public bool TransformAuto {
+        public bool TransformDragDrop {
             get {
-                return ((bool)(this["TransformAuto"]));
+                return ((bool)(this["TransformDragDrop"]));
             }
             set {
-                this["TransformAuto"] = value;
+                this["TransformDragDrop"] = value;
             }
         }
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        public global::System.DateTime UpdateTimestamp {
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string RootTagName {
             get {
-                return ((global::System.DateTime)(this["UpdateTimestamp"]));
+                return ((string)(this["RootTagName"]));
             }
             set {
-                this["UpdateTimestamp"] = value;
+                this["RootTagName"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool GenerateXml {
+            get {
+                return ((bool)(this["GenerateXml"]));
+            }
+            set {
+                this["GenerateXml"] = value;
             }
         }
     }

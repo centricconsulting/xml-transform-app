@@ -1,6263 +1,5020 @@
-﻿/* 
-##################################################################################################
-###########  INCLUDED ENTITIES:
-###############  Source
-###############  Currency
-###############  State
-###############  Country
-###############  Legal Entity
-###############  Customer
-###############  Customer Type
-###############  Customer Xref
-###############  Legal Entity
-###############  Legal Entity Holiday
-###############  Legal Entity Fiscal Period
-###############  Sales Order
-###############  Sales Order Line
-###############  Sales Order Line Status
-###############  Sales Order Line Status History
-##################################################################################################  
+﻿
+/* ##################################################################################
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-##################################################################################################  
-###########  DATABASE PREPARATION
-##################################################################################################
-*/
+DOCUMENT INFORMATION  (123 Tables)
 
-IF NOT EXISTS (SELECT 1 FROM sys.schemas sc WHERE sc.name = 'dbo')
--- create the CURRENT schema
-EXEC sp_executesql N'CREATE SCHEMA [dbo]';
-GO
+PROJECT: P&C Insurance Information Model
+AUTHOR:  Kris Moniz & Jeff Kanel
 
-IF NOT EXISTS (SELECT 1 FROM sys.schemas sc WHERE sc.name = 'ver')
--- create the VERSION schema
-EXEC sp_executesql N'CREATE SCHEMA [ver]';
-GO
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+##################################################################################### */
 
-IF NOT EXISTS (SELECT 1 FROM sys.schemas sc WHERE sc.name = 'vex')
--- create the VERSION SETTLEMENT schema
-EXEC sp_executesql N'CREATE SCHEMA [vex]';
-GO
 
-/*
-##################################################################################################  
-###########  ENTITY OBJECT DEFINITIONS FOR [Country]
-##################################################################################################
-*/
+/* ##################################################################################
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-IF OBJECT_ID(N'ver.[country]', N'U') IS NOT NULL
-  DROP TABLE ver.[country]
-;
+SUBJECT AREA: Claim (26 Tables)
 
-CREATE TABLE ver.[country] (
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+##################################################################################### */
 
-  -- VERSION IDENTITY KEY COLUMN
-  country_version_key INT IDENTITY(1000,1)
+
+/* ##################################################################################
+TABLE: Adjuster
+##################################################################################### */
+
+CREATE TABLE dbo.[adjuster] (
+  -- NAMED KEY COLUMN
+  adjuster_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , country_uid VARCHAR(200) NOT NULL
+, adjuster_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , country_code VARCHAR(20)
- , country_name VARCHAR(200) NOT NULL
- , world_subregion_desc VARCHAR(200)
- , world_region_desc VARCHAR(200)
+, first_name VARCHAR(200)
+, last_name VARCHAR(200)
+, full_name VARCHAR(200)
+, coll_full_name VARCHAR(200)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, source_uid VARCHAR(200) NOT NULL
-, source_rev_dtm DATETIME NOT NULL
-, source_rev_actor VARCHAR(200) NULL
-, source_delete_ind BIT NOT NULL
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-  -- VERSION COLUMNS
-, version_dtm DATETIME2
-, version_batch_key INT
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-, CONSTRAINT ver_country_pk
-    PRIMARY KEY NONCLUSTERED (country_version_key)
-);
-GO
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-CREATE CLUSTERED INDEX ver_country_cx ON
-  ver.[country] (country_uid);
-GO
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-IF OBJECT_ID(N'vex.[country]', N'U') IS NOT NULL
-DROP TABLE vex.[country]
-;
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-CREATE TABLE [vex].[country] (
-  
-  -- GENERAL NOTES: Many columns are marked as nullable in order to improve load efficiency. 
-  --   This is safe, assuming that loading is only handled through dedicated procs.
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_adjuster_pk PRIMARY KEY CLUSTERED (adjuster_uid)
 
-  -- KEY COLUMNS
-  country_version_key INT NOT NULL
-, next_country_version_key INT NULL
-, country_key INT NULL
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.adjuster_version));
 
-  -- VERSION ATTRIBUTES
-, version_index INT NULL
-, version_current_ind BIT NULL
-, version_latest_ind BIT NULL
+/* ##################################################################################
+TABLE: Catastrophe
+##################################################################################### */
 
-  -- END OF RANGE COLUMNS
-, end_version_dtmx DATETIME2 NULL
-, end_version_batch_key INT NULL
-, end_source_rev_dtmx DATETIME2 NULL
-
-, CONSTRAINT vex_country_pk
-    PRIMARY KEY (country_version_key)
-)
-;
-GO
-
-CREATE UNIQUE INDEX vex_country_u1 ON
-  vex.[country] (country_key)
-  WHERE version_latest_ind = 1;
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'dbo.[country]', N'V') IS NOT NULL
-DROP VIEW dbo.[country]
-;
-GO
-/* ################################################################################
-
-OBJECT: VIEW dbo.[country]
-
-DESCRIPTION: Exposes the current view of the version country table,
-  either latest or current version records.
-  
-RETURN DATASET:
-
-  - Columns are identical to the corresponding version table.
-  - The version key is retained for reference purposes.
-  - Assumes that grain column in the version table is unique based on version latest/current
-  - The filter "version_latest_ind = 1" is used for domain tables, whereas "version_current_ind = 1" is used for transaction tables.
-  - Because this only contains latest records, the end dates have been supressed; they are always null.
-
-NOTES:
-
-  Content views are provided as a way of exposing the current state records
-  of Version tables.  This makes it possible to query the dbo schema consistently
-  without special logic being applied by the analyst.
-
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-28  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################
-*/
-
-CREATE VIEW dbo.[country] AS
-SELECT 
-
-  -- KEY COLUMNS
-  vx.country_key
+CREATE TABLE dbo.[catastrophe] (
+  -- NAMED KEY COLUMN
+  catastrophe_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , v.country_uid
+, catastrophe_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , v.country_code
- , v.country_name
- , v.world_subregion_desc
- , v.world_region_desc
+, catastrophe_code VARCHAR(20)
+, catastrophe_desc VARCHAR(1000)
+, legacy_catastophe_code VARCHAR(20)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, v.source_uid
-, v.source_rev_dtm
-, v.source_rev_actor
-
-  -- VERSION COLUMNS
-, v.country_version_key
-, vx.version_index
-, v.version_dtm
-, vx.version_current_ind
-
-  -- BATCH COLUMNS
-, v.version_batch_key
-
-FROM
-ver.country v
-INNER JOIN vex.country vx ON
-  vx.country_version_key = v.country_version_key
-WHERE
-vx.version_latest_ind = 1
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[country_settle]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[country_settle]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[country_settle]
-
-DESCRIPTION: Truncates corresponding VEX table and reloads it using settle logic.
-
-PARAMETERS: None.
-
-OUTPUT PARAMETERS: None.
-
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-
-HISTORY:
-
-Date        Name            Version  Description
----------------------------------------------------------------------------------
-2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[country_settle] AS
-BEGIN
-
-SET NOCOUNT ON;
-
-TRUNCATE TABLE vex.[country];
-
-INSERT INTO vex.[country] (
-  country_version_key
-, next_country_version_key
-, country_key
-, version_index
-, version_current_ind
-, version_latest_ind
-, end_version_dtmx
-, end_version_batch_key
-, end_source_rev_dtmx
-)
-SELECT
-
-  v.country_version_key
-
-, LEAD(v.country_version_key, 1) OVER (
-    PARTITION BY v.country_uid
-    ORDER BY v.country_version_key ASC) AS next_country_version_key
-
-, MIN(v.country_version_key) OVER (
-    PARTITION BY v.country_uid) AS country_key
-
-, ROW_NUMBER() OVER (
-    PARTITION BY v.country_uid
-    ORDER BY v.country_version_key ASC) AS version_index
-
-    -- XOR "^" inverts the deleted indicator
-  , CASE
-    WHEN LAST_VALUE(v.country_version_key) OVER (
-      PARTITION BY v.country_uid
-      ORDER BY v.country_version_key ASC
-      RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.country_version_key THEN v.source_delete_ind ^ 1
-    ELSE 0 END AS version_current_ind
-
-, CASE
-  WHEN LAST_VALUE(v.country_version_key) OVER (
-    PARTITION BY v.country_uid
-    ORDER BY v.country_version_key ASC
-    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.country_version_key THEN 1
-  ELSE 0 END AS version_latest_ind
-
-, LEAD(v.version_dtm, 1) OVER (
-    PARTITION BY v.country_uid
-    ORDER BY v.country_version_key ASC) AS end_version_dtmx
-
-  -- Back the LEAD batch key off by 1
-, LEAD(v.version_batch_key, 1) OVER (
-    PARTITION BY v.country_uid
-    ORDER BY v.country_version_key ASC) - 1 AS end_version_batch_key
-
-, LEAD(v.source_rev_dtm, 1) OVER (
-    PARTITION BY v.country_uid
-    ORDER BY v.country_version_key ASC) AS end_source_rev_dtmx
-
-FROM
-ver.country v
-
-END;
-GO
-
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[country_settle_merge]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[country_settle_merge]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[country_settle_merge]
-
-DESCRIPTION: Performs a merge of all version records related to grain values that have been affected
-  on or after the specified batch key.
-
-PARAMETERS:
-
-  @begin_version_batch_key INT = The minimum batch key used to determine with grain records should
-    be considered in the settle.
-  
-OUTPUT PARAMETERS: None.
-  
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-  
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[country_settle_merge] 
-  @begin_version_batch_key INT
-, @suspend_cleanup_ind BIT = 0  
-AS
-BEGIN
-
-  SET NOCOUNT ON;
-
-  -- cleanup orphaned VEX records
-  IF @suspend_cleanup_ind = 0
-  BEGIN
-
-    DELETE vt FROM
-    vex.country vt
-    WHERE
-    NOT EXISTS (
-      SELECT 1 FROM ver.country vs
-      WHERE vs.country_version_key = vt.country_version_key
-    );
-
-  END
-
-
-  MERGE vex.country WITH (HOLDLOCK) AS vt
-
-  USING (
-  
-    SELECT
-
-      v.country_version_key
-
-    , LEAD(v.country_version_key, 1) OVER (
-        PARTITION BY v.country_uid
-        ORDER BY v.country_version_key ASC) AS next_country_version_key
-
-    , MIN(v.country_version_key) OVER (
-        PARTITION BY v.country_uid) AS country_key
-
-    , ROW_NUMBER() OVER (
-        PARTITION BY v.country_uid
-        ORDER BY v.country_version_key ASC) AS version_index
-
-      -- XOR "^" inverts the deleted indicator
-    , CASE
-      WHEN LAST_VALUE(v.country_version_key) OVER (
-        PARTITION BY v.country_uid
-        ORDER BY v.country_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.country_version_key THEN v.source_delete_ind ^ 1
-      ELSE 0 END AS version_current_ind
-
-    , CASE
-      WHEN LAST_VALUE(v.country_version_key) OVER (
-        PARTITION BY v.country_uid
-        ORDER BY v.country_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.country_version_key THEN 1
-      ELSE 0 END AS version_latest_ind
-
-    , LEAD(v.version_dtm, 1) OVER (
-        PARTITION BY v.country_uid
-        ORDER BY v.country_version_key ASC) AS end_version_dtmx
-
-      -- Back the LEAD batch key off by 1
-    , LEAD(v.version_batch_key, 1) OVER (
-        PARTITION BY v.country_uid
-        ORDER BY v.country_version_key ASC) - 1 AS end_version_batch_key
-
-    , LEAD(v.source_rev_dtm, 1) OVER (
-        PARTITION BY v.country_uid
-        ORDER BY v.country_version_key ASC) AS end_source_rev_dtmx
-
-    FROM
-    ver.country v
-    WHERE
-    EXISTS (
-
-	    SELECT 1 FROM ver.country vg
-	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
-      vg.country_uid = v.country_uid
-
-    )
-
-  ) AS vs
-
-  ON vs.country_version_key = vt.country_version_key 
-
-  WHEN MATCHED
-    AND COALESCE(vs.next_country_version_key, -1) != 
-      COALESCE(vt.next_country_version_key, -1) THEN
-
-    UPDATE SET
-      next_country_version_key = vs.next_country_version_key
-    , country_key = vs.country_key
-    , version_index = vs.version_index
-    , version_current_ind = vs.version_current_ind
-    , version_latest_ind = vs.version_latest_ind
-    , end_version_dtmx = vs.end_version_dtmx
-    , end_version_batch_key = vs.end_version_batch_key
-    , end_source_rev_dtmx = vs.end_source_rev_dtmx
-
-  WHEN NOT MATCHED BY TARGET THEN
-
-    INSERT (
-      country_version_key
-    , next_country_version_key
-    , country_key
-    , version_index
-    , version_current_ind
-    , version_latest_ind
-    , end_version_dtmx
-    , end_version_batch_key
-    , end_source_rev_dtmx
-    )  VALUES (
-      vs.country_version_key
-    , vs.next_country_version_key
-    , vs.country_key
-    , vs.version_index
-    , vs.version_current_ind
-    , vs.version_latest_ind
-    , vs.end_version_dtmx
-    , vs.end_version_batch_key
-    , vs.end_source_rev_dtmx
-    )
-
-  ;
-
-
-END;
-GO
-
-  
-/*
-##################################################################################################  
-###########  ENTITY OBJECT DEFINITIONS FOR [Currency]
-##################################################################################################
-*/
-
-IF OBJECT_ID(N'ver.[currency]', N'U') IS NOT NULL
-  DROP TABLE ver.[currency]
-;
-
-CREATE TABLE ver.[currency] (
-
-  -- VERSION IDENTITY KEY COLUMN
-  currency_version_key INT IDENTITY(1000,1)
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_catastrophe_pk PRIMARY KEY CLUSTERED (catastrophe_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.catastrophe_version));
+
+/* ##################################################################################
+TABLE: Cause of Loss
+##################################################################################### */
+
+CREATE TABLE dbo.[cause_of_loss] (
+  -- NAMED KEY COLUMN
+  cause_of_loss_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , currency_uid VARCHAR(200) NOT NULL
+, cause_of_loss_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , currency_code VARCHAR(20)
- , currency_name VARCHAR(200) NOT NULL
- , currency_symbol NVARCHAR(10)
+, cause_of_loss_code VARCHAR(20)
+, cause_of_loss_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, source_uid VARCHAR(200) NOT NULL
-, source_rev_dtm DATETIME NOT NULL
-, source_rev_actor VARCHAR(200) NULL
-, source_delete_ind BIT NOT NULL
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-  -- VERSION COLUMNS
-, version_dtm DATETIME2
-, version_batch_key INT
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-, CONSTRAINT ver_currency_pk
-    PRIMARY KEY NONCLUSTERED (currency_version_key)
-);
-GO
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-CREATE CLUSTERED INDEX ver_currency_cx ON
-  ver.[currency] (currency_uid);
-GO
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-IF OBJECT_ID(N'vex.[currency]', N'U') IS NOT NULL
-DROP TABLE vex.[currency]
-;
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-CREATE TABLE [vex].[currency] (
-  
-  -- GENERAL NOTES: Many columns are marked as nullable in order to improve load efficiency. 
-  --   This is safe, assuming that loading is only handled through dedicated procs.
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_cause_of_loss_pk PRIMARY KEY CLUSTERED (cause_of_loss_uid)
 
-  -- KEY COLUMNS
-  currency_version_key INT NOT NULL
-, next_currency_version_key INT NULL
-, currency_key INT NULL
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.cause_of_loss_version));
 
-  -- VERSION ATTRIBUTES
-, version_index INT NULL
-, version_current_ind BIT NULL
-, version_latest_ind BIT NULL
+/* ##################################################################################
+TABLE: Claim
+##################################################################################### */
 
-  -- END OF RANGE COLUMNS
-, end_version_dtmx DATETIME2 NULL
-, end_version_batch_key INT NULL
-, end_source_rev_dtmx DATETIME2 NULL
-
-, CONSTRAINT vex_currency_pk
-    PRIMARY KEY (currency_version_key)
-)
-;
-GO
-
-CREATE UNIQUE INDEX vex_currency_u1 ON
-  vex.[currency] (currency_key)
-  WHERE version_latest_ind = 1;
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'dbo.[currency]', N'V') IS NOT NULL
-DROP VIEW dbo.[currency]
-;
-GO
-/* ################################################################################
-
-OBJECT: VIEW dbo.[currency]
-
-DESCRIPTION: Exposes the current view of the version currency table,
-  either latest or current version records.
-  
-RETURN DATASET:
-
-  - Columns are identical to the corresponding version table.
-  - The version key is retained for reference purposes.
-  - Assumes that grain column in the version table is unique based on version latest/current
-  - The filter "version_latest_ind = 1" is used for domain tables, whereas "version_current_ind = 1" is used for transaction tables.
-  - Because this only contains latest records, the end dates have been supressed; they are always null.
-
-NOTES:
-
-  Content views are provided as a way of exposing the current state records
-  of Version tables.  This makes it possible to query the dbo schema consistently
-  without special logic being applied by the analyst.
-
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-28  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################
-*/
-
-CREATE VIEW dbo.[currency] AS
-SELECT 
-
-  -- KEY COLUMNS
-  vx.currency_key
+CREATE TABLE dbo.[claim] (
+  -- NAMED KEY COLUMN
+  claim_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , v.currency_uid
+, claim_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
+  -- ENTITY REFERENCE COLUMNS
+, policy_uid VARCHAR(200)
 
   -- ATTRIBUTE COLUMNS
- , v.currency_code
- , v.currency_name
- , v.currency_symbol
+, claim_number VARCHAR(200)
+, report_date DATE
+, loss_date DATE
+, loss_desc VARCHAR(1000)
+, policy_limit_amount DECIMAL(20,12)
+, policy_deductible_amount DECIMAL(20,12)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, v.source_uid
-, v.source_rev_dtm
-, v.source_rev_actor
-
-  -- VERSION COLUMNS
-, v.currency_version_key
-, vx.version_index
-, v.version_dtm
-, vx.version_current_ind
-
-  -- BATCH COLUMNS
-, v.version_batch_key
-
-FROM
-ver.currency v
-INNER JOIN vex.currency vx ON
-  vx.currency_version_key = v.currency_version_key
-WHERE
-vx.version_latest_ind = 1
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[currency_settle]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[currency_settle]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[currency_settle]
-
-DESCRIPTION: Truncates corresponding VEX table and reloads it using settle logic.
-
-PARAMETERS: None.
-
-OUTPUT PARAMETERS: None.
-
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-
-HISTORY:
-
-Date        Name            Version  Description
----------------------------------------------------------------------------------
-2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[currency_settle] AS
-BEGIN
-
-SET NOCOUNT ON;
-
-TRUNCATE TABLE vex.[currency];
-
-INSERT INTO vex.[currency] (
-  currency_version_key
-, next_currency_version_key
-, currency_key
-, version_index
-, version_current_ind
-, version_latest_ind
-, end_version_dtmx
-, end_version_batch_key
-, end_source_rev_dtmx
-)
-SELECT
-
-  v.currency_version_key
-
-, LEAD(v.currency_version_key, 1) OVER (
-    PARTITION BY v.currency_uid
-    ORDER BY v.currency_version_key ASC) AS next_currency_version_key
-
-, MIN(v.currency_version_key) OVER (
-    PARTITION BY v.currency_uid) AS currency_key
-
-, ROW_NUMBER() OVER (
-    PARTITION BY v.currency_uid
-    ORDER BY v.currency_version_key ASC) AS version_index
-
-    -- XOR "^" inverts the deleted indicator
-  , CASE
-    WHEN LAST_VALUE(v.currency_version_key) OVER (
-      PARTITION BY v.currency_uid
-      ORDER BY v.currency_version_key ASC
-      RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.currency_version_key THEN v.source_delete_ind ^ 1
-    ELSE 0 END AS version_current_ind
-
-, CASE
-  WHEN LAST_VALUE(v.currency_version_key) OVER (
-    PARTITION BY v.currency_uid
-    ORDER BY v.currency_version_key ASC
-    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.currency_version_key THEN 1
-  ELSE 0 END AS version_latest_ind
-
-, LEAD(v.version_dtm, 1) OVER (
-    PARTITION BY v.currency_uid
-    ORDER BY v.currency_version_key ASC) AS end_version_dtmx
-
-  -- Back the LEAD batch key off by 1
-, LEAD(v.version_batch_key, 1) OVER (
-    PARTITION BY v.currency_uid
-    ORDER BY v.currency_version_key ASC) - 1 AS end_version_batch_key
-
-, LEAD(v.source_rev_dtm, 1) OVER (
-    PARTITION BY v.currency_uid
-    ORDER BY v.currency_version_key ASC) AS end_source_rev_dtmx
-
-FROM
-ver.currency v
-
-END;
-GO
-
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[currency_settle_merge]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[currency_settle_merge]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[currency_settle_merge]
-
-DESCRIPTION: Performs a merge of all version records related to grain values that have been affected
-  on or after the specified batch key.
-
-PARAMETERS:
-
-  @begin_version_batch_key INT = The minimum batch key used to determine with grain records should
-    be considered in the settle.
-  
-OUTPUT PARAMETERS: None.
-  
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-  
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[currency_settle_merge] 
-  @begin_version_batch_key INT
-, @suspend_cleanup_ind BIT = 0  
-AS
-BEGIN
-
-  SET NOCOUNT ON;
-
-  -- cleanup orphaned VEX records
-  IF @suspend_cleanup_ind = 0
-  BEGIN
-
-    DELETE vt FROM
-    vex.currency vt
-    WHERE
-    NOT EXISTS (
-      SELECT 1 FROM ver.currency vs
-      WHERE vs.currency_version_key = vt.currency_version_key
-    );
-
-  END
-
-
-  MERGE vex.currency WITH (HOLDLOCK) AS vt
-
-  USING (
-  
-    SELECT
-
-      v.currency_version_key
-
-    , LEAD(v.currency_version_key, 1) OVER (
-        PARTITION BY v.currency_uid
-        ORDER BY v.currency_version_key ASC) AS next_currency_version_key
-
-    , MIN(v.currency_version_key) OVER (
-        PARTITION BY v.currency_uid) AS currency_key
-
-    , ROW_NUMBER() OVER (
-        PARTITION BY v.currency_uid
-        ORDER BY v.currency_version_key ASC) AS version_index
-
-      -- XOR "^" inverts the deleted indicator
-    , CASE
-      WHEN LAST_VALUE(v.currency_version_key) OVER (
-        PARTITION BY v.currency_uid
-        ORDER BY v.currency_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.currency_version_key THEN v.source_delete_ind ^ 1
-      ELSE 0 END AS version_current_ind
-
-    , CASE
-      WHEN LAST_VALUE(v.currency_version_key) OVER (
-        PARTITION BY v.currency_uid
-        ORDER BY v.currency_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.currency_version_key THEN 1
-      ELSE 0 END AS version_latest_ind
-
-    , LEAD(v.version_dtm, 1) OVER (
-        PARTITION BY v.currency_uid
-        ORDER BY v.currency_version_key ASC) AS end_version_dtmx
-
-      -- Back the LEAD batch key off by 1
-    , LEAD(v.version_batch_key, 1) OVER (
-        PARTITION BY v.currency_uid
-        ORDER BY v.currency_version_key ASC) - 1 AS end_version_batch_key
-
-    , LEAD(v.source_rev_dtm, 1) OVER (
-        PARTITION BY v.currency_uid
-        ORDER BY v.currency_version_key ASC) AS end_source_rev_dtmx
-
-    FROM
-    ver.currency v
-    WHERE
-    EXISTS (
-
-	    SELECT 1 FROM ver.currency vg
-	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
-      vg.currency_uid = v.currency_uid
-
-    )
-
-  ) AS vs
-
-  ON vs.currency_version_key = vt.currency_version_key 
-
-  WHEN MATCHED
-    AND COALESCE(vs.next_currency_version_key, -1) != 
-      COALESCE(vt.next_currency_version_key, -1) THEN
-
-    UPDATE SET
-      next_currency_version_key = vs.next_currency_version_key
-    , currency_key = vs.currency_key
-    , version_index = vs.version_index
-    , version_current_ind = vs.version_current_ind
-    , version_latest_ind = vs.version_latest_ind
-    , end_version_dtmx = vs.end_version_dtmx
-    , end_version_batch_key = vs.end_version_batch_key
-    , end_source_rev_dtmx = vs.end_source_rev_dtmx
-
-  WHEN NOT MATCHED BY TARGET THEN
-
-    INSERT (
-      currency_version_key
-    , next_currency_version_key
-    , currency_key
-    , version_index
-    , version_current_ind
-    , version_latest_ind
-    , end_version_dtmx
-    , end_version_batch_key
-    , end_source_rev_dtmx
-    )  VALUES (
-      vs.currency_version_key
-    , vs.next_currency_version_key
-    , vs.currency_key
-    , vs.version_index
-    , vs.version_current_ind
-    , vs.version_latest_ind
-    , vs.end_version_dtmx
-    , vs.end_version_batch_key
-    , vs.end_source_rev_dtmx
-    )
-
-  ;
-
-
-END;
-GO
-
-  
-/*
-##################################################################################################  
-###########  ENTITY OBJECT DEFINITIONS FOR [Customer]
-##################################################################################################
-*/
-
-IF OBJECT_ID(N'ver.[customer]', N'U') IS NOT NULL
-  DROP TABLE ver.[customer]
-;
-
-CREATE TABLE ver.[customer] (
-
-  -- VERSION IDENTITY KEY COLUMN
-  customer_version_key INT IDENTITY(1000,1)
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_claim_pk PRIMARY KEY CLUSTERED (claim_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.claim_version));
+
+/* ##################################################################################
+TABLE: Claim Incident
+##################################################################################### */
+
+CREATE TABLE dbo.[claim_incident] (
+  -- NAMED KEY COLUMN
+  claim_incident_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , customer_uid VARCHAR(200) NOT NULL
+, claim_incident_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
- , managing_legal_entity_uid VARCHAR(200)
- , customer_type_uid VARCHAR(200)
+  -- ENTITY REFERENCE COLUMNS
+, claim_status_uid VARCHAR(200)
 
   -- ATTRIBUTE COLUMNS
- , customer_name VARCHAR(200) NOT NULL
- , customer_nbr VARCHAR(100)
+, claim_incident_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, source_uid VARCHAR(200) NOT NULL
-, source_rev_dtm DATETIME NOT NULL
-, source_rev_actor VARCHAR(200) NULL
-, source_delete_ind BIT NOT NULL
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-  -- VERSION COLUMNS
-, version_dtm DATETIME2
-, version_batch_key INT
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-, CONSTRAINT ver_customer_pk
-    PRIMARY KEY NONCLUSTERED (customer_version_key)
-);
-GO
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-CREATE CLUSTERED INDEX ver_customer_cx ON
-  ver.[customer] (customer_uid);
-GO
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-IF OBJECT_ID(N'vex.[customer]', N'U') IS NOT NULL
-DROP TABLE vex.[customer]
-;
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-CREATE TABLE [vex].[customer] (
-  
-  -- GENERAL NOTES: Many columns are marked as nullable in order to improve load efficiency. 
-  --   This is safe, assuming that loading is only handled through dedicated procs.
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_claim_incident_pk PRIMARY KEY CLUSTERED (claim_incident_uid)
 
-  -- KEY COLUMNS
-  customer_version_key INT NOT NULL
-, next_customer_version_key INT NULL
-, customer_key INT NULL
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.claim_incident_version));
 
-  -- VERSION ATTRIBUTES
-, version_index INT NULL
-, version_current_ind BIT NULL
-, version_latest_ind BIT NULL
+/* ##################################################################################
+TABLE: Claim Expense
+##################################################################################### */
 
-  -- END OF RANGE COLUMNS
-, end_version_dtmx DATETIME2 NULL
-, end_version_batch_key INT NULL
-, end_source_rev_dtmx DATETIME2 NULL
-
-, CONSTRAINT vex_customer_pk
-    PRIMARY KEY (customer_version_key)
-)
-;
-GO
-
-CREATE UNIQUE INDEX vex_customer_u1 ON
-  vex.[customer] (customer_key)
-  WHERE version_latest_ind = 1;
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'dbo.[customer]', N'V') IS NOT NULL
-DROP VIEW dbo.[customer]
-;
-GO
-/* ################################################################################
-
-OBJECT: VIEW dbo.[customer]
-
-DESCRIPTION: Exposes the current view of the version customer table,
-  either latest or current version records.
-  
-RETURN DATASET:
-
-  - Columns are identical to the corresponding version table.
-  - The version key is retained for reference purposes.
-  - Assumes that grain column in the version table is unique based on version latest/current
-  - The filter "version_latest_ind = 1" is used for domain tables, whereas "version_current_ind = 1" is used for transaction tables.
-  - Because this only contains latest records, the end dates have been supressed; they are always null.
-
-NOTES:
-
-  Content views are provided as a way of exposing the current state records
-  of Version tables.  This makes it possible to query the dbo schema consistently
-  without special logic being applied by the analyst.
-
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-28  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################
-*/
-
-CREATE VIEW dbo.[customer] AS
-SELECT 
-
-  -- KEY COLUMNS
-  vx.customer_key
+CREATE TABLE dbo.[claim_expense] (
+  -- NAMED KEY COLUMN
+  claim_expense_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , v.customer_uid
+, claim_expense_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
- , v.managing_legal_entity_uid
- , v.customer_type_uid
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , v.customer_name
- , v.customer_nbr
+, expense_date DATE
+, expense_amount DECIMAL(20,12)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, v.source_uid
-, v.source_rev_dtm
-, v.source_rev_actor
-
-  -- VERSION COLUMNS
-, v.customer_version_key
-, vx.version_index
-, v.version_dtm
-, vx.version_current_ind
-
-  -- BATCH COLUMNS
-, v.version_batch_key
-
-FROM
-ver.customer v
-INNER JOIN vex.customer vx ON
-  vx.customer_version_key = v.customer_version_key
-WHERE
-vx.version_latest_ind = 1
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[customer_settle]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[customer_settle]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[customer_settle]
-
-DESCRIPTION: Truncates corresponding VEX table and reloads it using settle logic.
-
-PARAMETERS: None.
-
-OUTPUT PARAMETERS: None.
-
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-
-HISTORY:
-
-Date        Name            Version  Description
----------------------------------------------------------------------------------
-2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[customer_settle] AS
-BEGIN
-
-SET NOCOUNT ON;
-
-TRUNCATE TABLE vex.[customer];
-
-INSERT INTO vex.[customer] (
-  customer_version_key
-, next_customer_version_key
-, customer_key
-, version_index
-, version_current_ind
-, version_latest_ind
-, end_version_dtmx
-, end_version_batch_key
-, end_source_rev_dtmx
-)
-SELECT
-
-  v.customer_version_key
-
-, LEAD(v.customer_version_key, 1) OVER (
-    PARTITION BY v.customer_uid
-    ORDER BY v.customer_version_key ASC) AS next_customer_version_key
-
-, MIN(v.customer_version_key) OVER (
-    PARTITION BY v.customer_uid) AS customer_key
-
-, ROW_NUMBER() OVER (
-    PARTITION BY v.customer_uid
-    ORDER BY v.customer_version_key ASC) AS version_index
-
-    -- XOR "^" inverts the deleted indicator
-  , CASE
-    WHEN LAST_VALUE(v.customer_version_key) OVER (
-      PARTITION BY v.customer_uid
-      ORDER BY v.customer_version_key ASC
-      RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_version_key THEN v.source_delete_ind ^ 1
-    ELSE 0 END AS version_current_ind
-
-, CASE
-  WHEN LAST_VALUE(v.customer_version_key) OVER (
-    PARTITION BY v.customer_uid
-    ORDER BY v.customer_version_key ASC
-    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_version_key THEN 1
-  ELSE 0 END AS version_latest_ind
-
-, LEAD(v.version_dtm, 1) OVER (
-    PARTITION BY v.customer_uid
-    ORDER BY v.customer_version_key ASC) AS end_version_dtmx
-
-  -- Back the LEAD batch key off by 1
-, LEAD(v.version_batch_key, 1) OVER (
-    PARTITION BY v.customer_uid
-    ORDER BY v.customer_version_key ASC) - 1 AS end_version_batch_key
-
-, LEAD(v.source_rev_dtm, 1) OVER (
-    PARTITION BY v.customer_uid
-    ORDER BY v.customer_version_key ASC) AS end_source_rev_dtmx
-
-FROM
-ver.customer v
-
-END;
-GO
-
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[customer_settle_merge]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[customer_settle_merge]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[customer_settle_merge]
-
-DESCRIPTION: Performs a merge of all version records related to grain values that have been affected
-  on or after the specified batch key.
-
-PARAMETERS:
-
-  @begin_version_batch_key INT = The minimum batch key used to determine with grain records should
-    be considered in the settle.
-  
-OUTPUT PARAMETERS: None.
-  
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-  
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[customer_settle_merge] 
-  @begin_version_batch_key INT
-, @suspend_cleanup_ind BIT = 0  
-AS
-BEGIN
-
-  SET NOCOUNT ON;
-
-  -- cleanup orphaned VEX records
-  IF @suspend_cleanup_ind = 0
-  BEGIN
-
-    DELETE vt FROM
-    vex.customer vt
-    WHERE
-    NOT EXISTS (
-      SELECT 1 FROM ver.customer vs
-      WHERE vs.customer_version_key = vt.customer_version_key
-    );
-
-  END
-
-
-  MERGE vex.customer WITH (HOLDLOCK) AS vt
-
-  USING (
-  
-    SELECT
-
-      v.customer_version_key
-
-    , LEAD(v.customer_version_key, 1) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_version_key ASC) AS next_customer_version_key
-
-    , MIN(v.customer_version_key) OVER (
-        PARTITION BY v.customer_uid) AS customer_key
-
-    , ROW_NUMBER() OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_version_key ASC) AS version_index
-
-      -- XOR "^" inverts the deleted indicator
-    , CASE
-      WHEN LAST_VALUE(v.customer_version_key) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_version_key THEN v.source_delete_ind ^ 1
-      ELSE 0 END AS version_current_ind
-
-    , CASE
-      WHEN LAST_VALUE(v.customer_version_key) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_version_key THEN 1
-      ELSE 0 END AS version_latest_ind
-
-    , LEAD(v.version_dtm, 1) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_version_key ASC) AS end_version_dtmx
-
-      -- Back the LEAD batch key off by 1
-    , LEAD(v.version_batch_key, 1) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_version_key ASC) - 1 AS end_version_batch_key
-
-    , LEAD(v.source_rev_dtm, 1) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_version_key ASC) AS end_source_rev_dtmx
-
-    FROM
-    ver.customer v
-    WHERE
-    EXISTS (
-
-	    SELECT 1 FROM ver.customer vg
-	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
-      vg.customer_uid = v.customer_uid
-
-    )
-
-  ) AS vs
-
-  ON vs.customer_version_key = vt.customer_version_key 
-
-  WHEN MATCHED
-    AND COALESCE(vs.next_customer_version_key, -1) != 
-      COALESCE(vt.next_customer_version_key, -1) THEN
-
-    UPDATE SET
-      next_customer_version_key = vs.next_customer_version_key
-    , customer_key = vs.customer_key
-    , version_index = vs.version_index
-    , version_current_ind = vs.version_current_ind
-    , version_latest_ind = vs.version_latest_ind
-    , end_version_dtmx = vs.end_version_dtmx
-    , end_version_batch_key = vs.end_version_batch_key
-    , end_source_rev_dtmx = vs.end_source_rev_dtmx
-
-  WHEN NOT MATCHED BY TARGET THEN
-
-    INSERT (
-      customer_version_key
-    , next_customer_version_key
-    , customer_key
-    , version_index
-    , version_current_ind
-    , version_latest_ind
-    , end_version_dtmx
-    , end_version_batch_key
-    , end_source_rev_dtmx
-    )  VALUES (
-      vs.customer_version_key
-    , vs.next_customer_version_key
-    , vs.customer_key
-    , vs.version_index
-    , vs.version_current_ind
-    , vs.version_latest_ind
-    , vs.end_version_dtmx
-    , vs.end_version_batch_key
-    , vs.end_source_rev_dtmx
-    )
-
-  ;
-
-
-END;
-GO
-
-  
-/*
-##################################################################################################  
-###########  ENTITY OBJECT DEFINITIONS FOR [Customer Type]
-##################################################################################################
-*/
-
-IF OBJECT_ID(N'ver.[customer_type]', N'U') IS NOT NULL
-  DROP TABLE ver.[customer_type]
-;
-
-CREATE TABLE ver.[customer_type] (
-
-  -- VERSION IDENTITY KEY COLUMN
-  customer_type_version_key INT IDENTITY(1000,1)
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_claim_expense_pk PRIMARY KEY CLUSTERED (claim_expense_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.claim_expense_version));
+
+/* ##################################################################################
+TABLE: Claim Feature
+##################################################################################### */
+
+CREATE TABLE dbo.[claim_feature] (
+  -- NAMED KEY COLUMN
+  claim_feature_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , customer_type_uid VARCHAR(200) NOT NULL
+, claim_incident_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
+  -- ENTITY REFERENCE COLUMNS
+, coverage_uid VARCHAR(200)
 
   -- ATTRIBUTE COLUMNS
- , customer_type_name VARCHAR(200) NOT NULL
- , customer_type_code VARCHAR(20)
+, subcoverage_desc VARCHAR(1000)
+, claim_feature_desc VARCHAR(1000)
+, limit_amount DECIMAL(20,12)
+, deductible_amount DECIMAL(20,12)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, source_uid VARCHAR(200) NOT NULL
-, source_rev_dtm DATETIME NOT NULL
-, source_rev_actor VARCHAR(200) NULL
-, source_delete_ind BIT NOT NULL
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-  -- VERSION COLUMNS
-, version_dtm DATETIME2
-, version_batch_key INT
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-, CONSTRAINT ver_customer_type_pk
-    PRIMARY KEY NONCLUSTERED (customer_type_version_key)
-);
-GO
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-CREATE CLUSTERED INDEX ver_customer_type_cx ON
-  ver.[customer_type] (customer_type_uid);
-GO
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-IF OBJECT_ID(N'vex.[customer_type]', N'U') IS NOT NULL
-DROP TABLE vex.[customer_type]
-;
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-CREATE TABLE [vex].[customer_type] (
-  
-  -- GENERAL NOTES: Many columns are marked as nullable in order to improve load efficiency. 
-  --   This is safe, assuming that loading is only handled through dedicated procs.
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_claim_feature_pk PRIMARY KEY CLUSTERED (claim_incident_uid)
 
-  -- KEY COLUMNS
-  customer_type_version_key INT NOT NULL
-, next_customer_type_version_key INT NULL
-, customer_type_key INT NULL
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.claim_feature_version));
 
-  -- VERSION ATTRIBUTES
-, version_index INT NULL
-, version_current_ind BIT NULL
-, version_latest_ind BIT NULL
+/* ##################################################################################
+TABLE: Claim Feature Status History
+##################################################################################### */
 
-  -- END OF RANGE COLUMNS
-, end_version_dtmx DATETIME2 NULL
-, end_version_batch_key INT NULL
-, end_source_rev_dtmx DATETIME2 NULL
-
-, CONSTRAINT vex_customer_type_pk
-    PRIMARY KEY (customer_type_version_key)
-)
-;
-GO
-
-CREATE UNIQUE INDEX vex_customer_type_u1 ON
-  vex.[customer_type] (customer_type_key)
-  WHERE version_latest_ind = 1;
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'dbo.[customer_type]', N'V') IS NOT NULL
-DROP VIEW dbo.[customer_type]
-;
-GO
-/* ################################################################################
-
-OBJECT: VIEW dbo.[customer_type]
-
-DESCRIPTION: Exposes the current view of the version customer_type table,
-  either latest or current version records.
-  
-RETURN DATASET:
-
-  - Columns are identical to the corresponding version table.
-  - The version key is retained for reference purposes.
-  - Assumes that grain column in the version table is unique based on version latest/current
-  - The filter "version_latest_ind = 1" is used for domain tables, whereas "version_current_ind = 1" is used for transaction tables.
-  - Because this only contains latest records, the end dates have been supressed; they are always null.
-
-NOTES:
-
-  Content views are provided as a way of exposing the current state records
-  of Version tables.  This makes it possible to query the dbo schema consistently
-  without special logic being applied by the analyst.
-
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-28  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################
-*/
-
-CREATE VIEW dbo.[customer_type] AS
-SELECT 
-
-  -- KEY COLUMNS
-  vx.customer_type_key
+CREATE TABLE dbo.[claim_feature_status_history] (
+  -- NAMED KEY COLUMN
+  claim_feature_status_history_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , v.customer_type_uid
+, status_date DATE
 
-  -- FOREIGN REFERENCE COLUMNS
-
-  -- ATTRIBUTE COLUMNS
- , v.customer_type_name
- , v.customer_type_code
-
-  -- SOURCE COLUMNS
-, v.source_uid
-, v.source_rev_dtm
-, v.source_rev_actor
-
-  -- VERSION COLUMNS
-, v.customer_type_version_key
-, vx.version_index
-, v.version_dtm
-, vx.version_current_ind
-
-  -- BATCH COLUMNS
-, v.version_batch_key
-
-FROM
-ver.customer_type v
-INNER JOIN vex.customer_type vx ON
-  vx.customer_type_version_key = v.customer_type_version_key
-WHERE
-vx.version_latest_ind = 1
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[customer_type_settle]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[customer_type_settle]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[customer_type_settle]
-
-DESCRIPTION: Truncates corresponding VEX table and reloads it using settle logic.
-
-PARAMETERS: None.
-
-OUTPUT PARAMETERS: None.
-
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-
-HISTORY:
-
-Date        Name            Version  Description
----------------------------------------------------------------------------------
-2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[customer_type_settle] AS
-BEGIN
-
-SET NOCOUNT ON;
-
-TRUNCATE TABLE vex.[customer_type];
-
-INSERT INTO vex.[customer_type] (
-  customer_type_version_key
-, next_customer_type_version_key
-, customer_type_key
-, version_index
-, version_current_ind
-, version_latest_ind
-, end_version_dtmx
-, end_version_batch_key
-, end_source_rev_dtmx
-)
-SELECT
-
-  v.customer_type_version_key
-
-, LEAD(v.customer_type_version_key, 1) OVER (
-    PARTITION BY v.customer_type_uid
-    ORDER BY v.customer_type_version_key ASC) AS next_customer_type_version_key
-
-, MIN(v.customer_type_version_key) OVER (
-    PARTITION BY v.customer_type_uid) AS customer_type_key
-
-, ROW_NUMBER() OVER (
-    PARTITION BY v.customer_type_uid
-    ORDER BY v.customer_type_version_key ASC) AS version_index
-
-    -- XOR "^" inverts the deleted indicator
-  , CASE
-    WHEN LAST_VALUE(v.customer_type_version_key) OVER (
-      PARTITION BY v.customer_type_uid
-      ORDER BY v.customer_type_version_key ASC
-      RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_type_version_key THEN v.source_delete_ind ^ 1
-    ELSE 0 END AS version_current_ind
-
-, CASE
-  WHEN LAST_VALUE(v.customer_type_version_key) OVER (
-    PARTITION BY v.customer_type_uid
-    ORDER BY v.customer_type_version_key ASC
-    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_type_version_key THEN 1
-  ELSE 0 END AS version_latest_ind
-
-, LEAD(v.version_dtm, 1) OVER (
-    PARTITION BY v.customer_type_uid
-    ORDER BY v.customer_type_version_key ASC) AS end_version_dtmx
-
-  -- Back the LEAD batch key off by 1
-, LEAD(v.version_batch_key, 1) OVER (
-    PARTITION BY v.customer_type_uid
-    ORDER BY v.customer_type_version_key ASC) - 1 AS end_version_batch_key
-
-, LEAD(v.source_rev_dtm, 1) OVER (
-    PARTITION BY v.customer_type_uid
-    ORDER BY v.customer_type_version_key ASC) AS end_source_rev_dtmx
-
-FROM
-ver.customer_type v
-
-END;
-GO
-
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[customer_type_settle_merge]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[customer_type_settle_merge]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[customer_type_settle_merge]
-
-DESCRIPTION: Performs a merge of all version records related to grain values that have been affected
-  on or after the specified batch key.
-
-PARAMETERS:
-
-  @begin_version_batch_key INT = The minimum batch key used to determine with grain records should
-    be considered in the settle.
-  
-OUTPUT PARAMETERS: None.
-  
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-  
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[customer_type_settle_merge] 
-  @begin_version_batch_key INT
-, @suspend_cleanup_ind BIT = 0  
-AS
-BEGIN
-
-  SET NOCOUNT ON;
-
-  -- cleanup orphaned VEX records
-  IF @suspend_cleanup_ind = 0
-  BEGIN
-
-    DELETE vt FROM
-    vex.customer_type vt
-    WHERE
-    NOT EXISTS (
-      SELECT 1 FROM ver.customer_type vs
-      WHERE vs.customer_type_version_key = vt.customer_type_version_key
-    );
-
-  END
-
-
-  MERGE vex.customer_type WITH (HOLDLOCK) AS vt
-
-  USING (
-  
-    SELECT
-
-      v.customer_type_version_key
-
-    , LEAD(v.customer_type_version_key, 1) OVER (
-        PARTITION BY v.customer_type_uid
-        ORDER BY v.customer_type_version_key ASC) AS next_customer_type_version_key
-
-    , MIN(v.customer_type_version_key) OVER (
-        PARTITION BY v.customer_type_uid) AS customer_type_key
-
-    , ROW_NUMBER() OVER (
-        PARTITION BY v.customer_type_uid
-        ORDER BY v.customer_type_version_key ASC) AS version_index
-
-      -- XOR "^" inverts the deleted indicator
-    , CASE
-      WHEN LAST_VALUE(v.customer_type_version_key) OVER (
-        PARTITION BY v.customer_type_uid
-        ORDER BY v.customer_type_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_type_version_key THEN v.source_delete_ind ^ 1
-      ELSE 0 END AS version_current_ind
-
-    , CASE
-      WHEN LAST_VALUE(v.customer_type_version_key) OVER (
-        PARTITION BY v.customer_type_uid
-        ORDER BY v.customer_type_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_type_version_key THEN 1
-      ELSE 0 END AS version_latest_ind
-
-    , LEAD(v.version_dtm, 1) OVER (
-        PARTITION BY v.customer_type_uid
-        ORDER BY v.customer_type_version_key ASC) AS end_version_dtmx
-
-      -- Back the LEAD batch key off by 1
-    , LEAD(v.version_batch_key, 1) OVER (
-        PARTITION BY v.customer_type_uid
-        ORDER BY v.customer_type_version_key ASC) - 1 AS end_version_batch_key
-
-    , LEAD(v.source_rev_dtm, 1) OVER (
-        PARTITION BY v.customer_type_uid
-        ORDER BY v.customer_type_version_key ASC) AS end_source_rev_dtmx
-
-    FROM
-    ver.customer_type v
-    WHERE
-    EXISTS (
-
-	    SELECT 1 FROM ver.customer_type vg
-	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
-      vg.customer_type_uid = v.customer_type_uid
-
-    )
-
-  ) AS vs
-
-  ON vs.customer_type_version_key = vt.customer_type_version_key 
-
-  WHEN MATCHED
-    AND COALESCE(vs.next_customer_type_version_key, -1) != 
-      COALESCE(vt.next_customer_type_version_key, -1) THEN
-
-    UPDATE SET
-      next_customer_type_version_key = vs.next_customer_type_version_key
-    , customer_type_key = vs.customer_type_key
-    , version_index = vs.version_index
-    , version_current_ind = vs.version_current_ind
-    , version_latest_ind = vs.version_latest_ind
-    , end_version_dtmx = vs.end_version_dtmx
-    , end_version_batch_key = vs.end_version_batch_key
-    , end_source_rev_dtmx = vs.end_source_rev_dtmx
-
-  WHEN NOT MATCHED BY TARGET THEN
-
-    INSERT (
-      customer_type_version_key
-    , next_customer_type_version_key
-    , customer_type_key
-    , version_index
-    , version_current_ind
-    , version_latest_ind
-    , end_version_dtmx
-    , end_version_batch_key
-    , end_source_rev_dtmx
-    )  VALUES (
-      vs.customer_type_version_key
-    , vs.next_customer_type_version_key
-    , vs.customer_type_key
-    , vs.version_index
-    , vs.version_current_ind
-    , vs.version_latest_ind
-    , vs.end_version_dtmx
-    , vs.end_version_batch_key
-    , vs.end_source_rev_dtmx
-    )
-
-  ;
-
-
-END;
-GO
-
-  
-/*
-##################################################################################################  
-###########  ENTITY OBJECT DEFINITIONS FOR [Customer Xref]
-##################################################################################################
-*/
-
-IF OBJECT_ID(N'ver.[customer_xref]', N'U') IS NOT NULL
-  DROP TABLE ver.[customer_xref]
-;
-
-CREATE TABLE ver.[customer_xref] (
-
-  -- VERSION IDENTITY KEY COLUMN
-  customer_xref_version_key INT IDENTITY(1000,1)
-
-  -- GRAIN COLUMNS
- , customer_uid VARCHAR(200) NOT NULL
-
-  -- FOREIGN REFERENCE COLUMNS
- , master_customer_uid VARCHAR(200)
+  -- ENTITY REFERENCE COLUMNS
+, claim_feature_status_uid VARCHAR(200)
 
   -- ATTRIBUTE COLUMNS
 
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
   -- SOURCE COLUMNS
-, source_uid VARCHAR(200) NOT NULL
-, source_rev_dtm DATETIME NOT NULL
-, source_rev_actor VARCHAR(200) NULL
-, source_delete_ind BIT NOT NULL
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-  -- VERSION COLUMNS
-, version_dtm DATETIME2
-, version_batch_key INT
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-, CONSTRAINT ver_customer_xref_pk
-    PRIMARY KEY NONCLUSTERED (customer_xref_version_key)
-);
-GO
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-CREATE CLUSTERED INDEX ver_customer_xref_cx ON
-  ver.[customer_xref] (customer_uid);
-GO
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-IF OBJECT_ID(N'vex.[customer_xref]', N'U') IS NOT NULL
-DROP TABLE vex.[customer_xref]
-;
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-CREATE TABLE [vex].[customer_xref] (
-  
-  -- GENERAL NOTES: Many columns are marked as nullable in order to improve load efficiency. 
-  --   This is safe, assuming that loading is only handled through dedicated procs.
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_claim_feature_status_history_pk PRIMARY KEY CLUSTERED (status_date)
 
-  -- KEY COLUMNS
-  customer_xref_version_key INT NOT NULL
-, next_customer_xref_version_key INT NULL
-, customer_xref_key INT NULL
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.claim_feature_status_history_version));
 
-  -- VERSION ATTRIBUTES
-, version_index INT NULL
-, version_current_ind BIT NULL
-, version_latest_ind BIT NULL
+/* ##################################################################################
+TABLE: Claim Payment
+##################################################################################### */
 
-  -- END OF RANGE COLUMNS
-, end_version_dtmx DATETIME2 NULL
-, end_version_batch_key INT NULL
-, end_source_rev_dtmx DATETIME2 NULL
-
-, CONSTRAINT vex_customer_xref_pk
-    PRIMARY KEY (customer_xref_version_key)
-)
-;
-GO
-
-CREATE UNIQUE INDEX vex_customer_xref_u1 ON
-  vex.[customer_xref] (customer_xref_key)
-  WHERE version_latest_ind = 1;
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'dbo.[customer_xref]', N'V') IS NOT NULL
-DROP VIEW dbo.[customer_xref]
-;
-GO
-/* ################################################################################
-
-OBJECT: VIEW dbo.[customer_xref]
-
-DESCRIPTION: Exposes the current view of the version customer_xref table,
-  either latest or current version records.
-  
-RETURN DATASET:
-
-  - Columns are identical to the corresponding version table.
-  - The version key is retained for reference purposes.
-  - Assumes that grain column in the version table is unique based on version latest/current
-  - The filter "version_latest_ind = 1" is used for domain tables, whereas "version_current_ind = 1" is used for transaction tables.
-  - Because this only contains latest records, the end dates have been supressed; they are always null.
-
-NOTES:
-
-  Content views are provided as a way of exposing the current state records
-  of Version tables.  This makes it possible to query the dbo schema consistently
-  without special logic being applied by the analyst.
-
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-28  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################
-*/
-
-CREATE VIEW dbo.[customer_xref] AS
-SELECT 
-
-  -- KEY COLUMNS
-  vx.customer_xref_key
+CREATE TABLE dbo.[claim_payment] (
+  -- NAMED KEY COLUMN
+  claim_payment_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , v.customer_uid
+, claim_payment_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
- , v.master_customer_uid
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, payment_amount DECIMAL(20,12)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_claim_payment_pk PRIMARY KEY CLUSTERED (claim_payment_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.claim_payment_version));
+
+/* ##################################################################################
+TABLE: Claim Reserve
+##################################################################################### */
+
+CREATE TABLE dbo.[claim_reserve] (
+  -- NAMED KEY COLUMN
+  claim_reserve_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, claim_reserve_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, claim_feature_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, reserve_date DATE
+, reserve_amount DECIMAL(20,12)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_claim_reserve_pk PRIMARY KEY CLUSTERED (claim_reserve_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.claim_reserve_version));
+
+/* ##################################################################################
+TABLE: Claim Reserve Type
+##################################################################################### */
+
+CREATE TABLE dbo.[claim_reserve_type] (
+  -- NAMED KEY COLUMN
+  claim_reserve_type_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, claim_reserve_type_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, claim_reserve_code VARCHAR(20)
+, claim_reserve_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_claim_reserve_type_pk PRIMARY KEY CLUSTERED (claim_reserve_type_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.claim_reserve_type_version));
+
+/* ##################################################################################
+TABLE: Claim Status
+##################################################################################### */
+
+CREATE TABLE dbo.[claim_status] (
+  -- NAMED KEY COLUMN
+  claim_status_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, claim_status_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, claim_status_code VARCHAR(20)
+, claim_status_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_claim_status_pk PRIMARY KEY CLUSTERED (claim_status_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.claim_status_version));
+
+/* ##################################################################################
+TABLE: Claimant
+##################################################################################### */
+
+CREATE TABLE dbo.[claimant] (
+  -- NAMED KEY COLUMN
+  claimant_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, claimant_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, primary_address_uid VARCHAR(200)
+, mail_address_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, first_name VARCHAR(200)
+, last_name VARCHAR(200)
+, full_name VARCHAR(200)
+, coll_full_name VARCHAR(200)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_claimant_pk PRIMARY KEY CLUSTERED (claimant_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.claimant_version));
+
+/* ##################################################################################
+TABLE: Claimant Feature
+##################################################################################### */
+
+CREATE TABLE dbo.[claimant_feature] (
+  -- NAMED KEY COLUMN
+  claimant_feature_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, claimant_feature_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, claimant_type_uid VARCHAR(200)
 
   -- ATTRIBUTE COLUMNS
 
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
   -- SOURCE COLUMNS
-, v.source_uid
-, v.source_rev_dtm
-, v.source_rev_actor
-
-  -- VERSION COLUMNS
-, v.customer_xref_version_key
-, vx.version_index
-, v.version_dtm
-, vx.version_current_ind
-
-  -- BATCH COLUMNS
-, v.version_batch_key
-
-FROM
-ver.customer_xref v
-INNER JOIN vex.customer_xref vx ON
-  vx.customer_xref_version_key = v.customer_xref_version_key
-WHERE
-vx.version_latest_ind = 1
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[customer_xref_settle]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[customer_xref_settle]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[customer_xref_settle]
-
-DESCRIPTION: Truncates corresponding VEX table and reloads it using settle logic.
-
-PARAMETERS: None.
-
-OUTPUT PARAMETERS: None.
-
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-
-HISTORY:
-
-Date        Name            Version  Description
----------------------------------------------------------------------------------
-2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[customer_xref_settle] AS
-BEGIN
-
-SET NOCOUNT ON;
-
-TRUNCATE TABLE vex.[customer_xref];
-
-INSERT INTO vex.[customer_xref] (
-  customer_xref_version_key
-, next_customer_xref_version_key
-, customer_xref_key
-, version_index
-, version_current_ind
-, version_latest_ind
-, end_version_dtmx
-, end_version_batch_key
-, end_source_rev_dtmx
-)
-SELECT
-
-  v.customer_xref_version_key
-
-, LEAD(v.customer_xref_version_key, 1) OVER (
-    PARTITION BY v.customer_uid
-    ORDER BY v.customer_xref_version_key ASC) AS next_customer_xref_version_key
-
-, MIN(v.customer_xref_version_key) OVER (
-    PARTITION BY v.customer_uid) AS customer_xref_key
-
-, ROW_NUMBER() OVER (
-    PARTITION BY v.customer_uid
-    ORDER BY v.customer_xref_version_key ASC) AS version_index
-
-    -- XOR "^" inverts the deleted indicator
-  , CASE
-    WHEN LAST_VALUE(v.customer_xref_version_key) OVER (
-      PARTITION BY v.customer_uid
-      ORDER BY v.customer_xref_version_key ASC
-      RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_xref_version_key THEN v.source_delete_ind ^ 1
-    ELSE 0 END AS version_current_ind
-
-, CASE
-  WHEN LAST_VALUE(v.customer_xref_version_key) OVER (
-    PARTITION BY v.customer_uid
-    ORDER BY v.customer_xref_version_key ASC
-    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_xref_version_key THEN 1
-  ELSE 0 END AS version_latest_ind
-
-, LEAD(v.version_dtm, 1) OVER (
-    PARTITION BY v.customer_uid
-    ORDER BY v.customer_xref_version_key ASC) AS end_version_dtmx
-
-  -- Back the LEAD batch key off by 1
-, LEAD(v.version_batch_key, 1) OVER (
-    PARTITION BY v.customer_uid
-    ORDER BY v.customer_xref_version_key ASC) - 1 AS end_version_batch_key
-
-, LEAD(v.source_rev_dtm, 1) OVER (
-    PARTITION BY v.customer_uid
-    ORDER BY v.customer_xref_version_key ASC) AS end_source_rev_dtmx
-
-FROM
-ver.customer_xref v
-
-END;
-GO
-
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[customer_xref_settle_merge]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[customer_xref_settle_merge]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[customer_xref_settle_merge]
-
-DESCRIPTION: Performs a merge of all version records related to grain values that have been affected
-  on or after the specified batch key.
-
-PARAMETERS:
-
-  @begin_version_batch_key INT = The minimum batch key used to determine with grain records should
-    be considered in the settle.
-  
-OUTPUT PARAMETERS: None.
-  
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-  
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[customer_xref_settle_merge] 
-  @begin_version_batch_key INT
-, @suspend_cleanup_ind BIT = 0  
-AS
-BEGIN
-
-  SET NOCOUNT ON;
-
-  -- cleanup orphaned VEX records
-  IF @suspend_cleanup_ind = 0
-  BEGIN
-
-    DELETE vt FROM
-    vex.customer_xref vt
-    WHERE
-    NOT EXISTS (
-      SELECT 1 FROM ver.customer_xref vs
-      WHERE vs.customer_xref_version_key = vt.customer_xref_version_key
-    );
-
-  END
-
-
-  MERGE vex.customer_xref WITH (HOLDLOCK) AS vt
-
-  USING (
-  
-    SELECT
-
-      v.customer_xref_version_key
-
-    , LEAD(v.customer_xref_version_key, 1) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_xref_version_key ASC) AS next_customer_xref_version_key
-
-    , MIN(v.customer_xref_version_key) OVER (
-        PARTITION BY v.customer_uid) AS customer_xref_key
-
-    , ROW_NUMBER() OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_xref_version_key ASC) AS version_index
-
-      -- XOR "^" inverts the deleted indicator
-    , CASE
-      WHEN LAST_VALUE(v.customer_xref_version_key) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_xref_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_xref_version_key THEN v.source_delete_ind ^ 1
-      ELSE 0 END AS version_current_ind
-
-    , CASE
-      WHEN LAST_VALUE(v.customer_xref_version_key) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_xref_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_xref_version_key THEN 1
-      ELSE 0 END AS version_latest_ind
-
-    , LEAD(v.version_dtm, 1) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_xref_version_key ASC) AS end_version_dtmx
-
-      -- Back the LEAD batch key off by 1
-    , LEAD(v.version_batch_key, 1) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_xref_version_key ASC) - 1 AS end_version_batch_key
-
-    , LEAD(v.source_rev_dtm, 1) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_xref_version_key ASC) AS end_source_rev_dtmx
-
-    FROM
-    ver.customer_xref v
-    WHERE
-    EXISTS (
-
-	    SELECT 1 FROM ver.customer_xref vg
-	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
-      vg.customer_uid = v.customer_uid
-
-    )
-
-  ) AS vs
-
-  ON vs.customer_xref_version_key = vt.customer_xref_version_key 
-
-  WHEN MATCHED
-    AND COALESCE(vs.next_customer_xref_version_key, -1) != 
-      COALESCE(vt.next_customer_xref_version_key, -1) THEN
-
-    UPDATE SET
-      next_customer_xref_version_key = vs.next_customer_xref_version_key
-    , customer_xref_key = vs.customer_xref_key
-    , version_index = vs.version_index
-    , version_current_ind = vs.version_current_ind
-    , version_latest_ind = vs.version_latest_ind
-    , end_version_dtmx = vs.end_version_dtmx
-    , end_version_batch_key = vs.end_version_batch_key
-    , end_source_rev_dtmx = vs.end_source_rev_dtmx
-
-  WHEN NOT MATCHED BY TARGET THEN
-
-    INSERT (
-      customer_xref_version_key
-    , next_customer_xref_version_key
-    , customer_xref_key
-    , version_index
-    , version_current_ind
-    , version_latest_ind
-    , end_version_dtmx
-    , end_version_batch_key
-    , end_source_rev_dtmx
-    )  VALUES (
-      vs.customer_xref_version_key
-    , vs.next_customer_xref_version_key
-    , vs.customer_xref_key
-    , vs.version_index
-    , vs.version_current_ind
-    , vs.version_latest_ind
-    , vs.end_version_dtmx
-    , vs.end_version_batch_key
-    , vs.end_source_rev_dtmx
-    )
-
-  ;
-
-
-END;
-GO
-
-  
-/*
-##################################################################################################  
-###########  ENTITY OBJECT DEFINITIONS FOR [Legal Entity]
-##################################################################################################
-*/
-
-IF OBJECT_ID(N'ver.[customer]', N'U') IS NOT NULL
-  DROP TABLE ver.[customer]
-;
-
-CREATE TABLE ver.[customer] (
-
-  -- VERSION IDENTITY KEY COLUMN
-  customer_version_key INT IDENTITY(1000,1)
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_claimant_feature_pk PRIMARY KEY CLUSTERED (claimant_feature_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.claimant_feature_version));
+
+/* ##################################################################################
+TABLE: Claimant Type
+##################################################################################### */
+
+CREATE TABLE dbo.[claimant_type] (
+  -- NAMED KEY COLUMN
+  claimant_type_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , customer_uid VARCHAR(200) NOT NULL
+, claimant_type_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , customer_legal_name VARCHAR(200) NOT NULL
- , parent_organization_name VARCHAR(200) NOT NULL
- , customer_nbr VARCHAR(50)
- , risk_score_val DECIMAL(20,12)
+, claimant_type_code VARCHAR(20)
+, claimant_type_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, source_uid VARCHAR(200) NOT NULL
-, source_rev_dtm DATETIME NOT NULL
-, source_rev_actor VARCHAR(200) NULL
-, source_delete_ind BIT NOT NULL
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-  -- VERSION COLUMNS
-, version_dtm DATETIME2
-, version_batch_key INT
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-, CONSTRAINT ver_customer_pk
-    PRIMARY KEY NONCLUSTERED (customer_version_key)
-);
-GO
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-CREATE CLUSTERED INDEX ver_customer_cx ON
-  ver.[customer] (customer_uid);
-GO
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-IF OBJECT_ID(N'vex.[customer]', N'U') IS NOT NULL
-DROP TABLE vex.[customer]
-;
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-CREATE TABLE [vex].[customer] (
-  
-  -- GENERAL NOTES: Many columns are marked as nullable in order to improve load efficiency. 
-  --   This is safe, assuming that loading is only handled through dedicated procs.
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_claimant_type_pk PRIMARY KEY CLUSTERED (claimant_type_uid)
 
-  -- KEY COLUMNS
-  customer_version_key INT NOT NULL
-, next_customer_version_key INT NULL
-, customer_key INT NULL
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.claimant_type_version));
 
-  -- VERSION ATTRIBUTES
-, version_index INT NULL
-, version_current_ind BIT NULL
-, version_latest_ind BIT NULL
+/* ##################################################################################
+TABLE: Invoice
+##################################################################################### */
 
-  -- END OF RANGE COLUMNS
-, end_version_dtmx DATETIME2 NULL
-, end_version_batch_key INT NULL
-, end_source_rev_dtmx DATETIME2 NULL
-
-, CONSTRAINT vex_customer_pk
-    PRIMARY KEY (customer_version_key)
-)
-;
-GO
-
-CREATE UNIQUE INDEX vex_customer_u1 ON
-  vex.[customer] (customer_key)
-  WHERE version_latest_ind = 1;
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'dbo.[customer]', N'V') IS NOT NULL
-DROP VIEW dbo.[customer]
-;
-GO
-/* ################################################################################
-
-OBJECT: VIEW dbo.[customer]
-
-DESCRIPTION: Exposes the current view of the version customer table,
-  either latest or current version records.
-  
-RETURN DATASET:
-
-  - Columns are identical to the corresponding version table.
-  - The version key is retained for reference purposes.
-  - Assumes that grain column in the version table is unique based on version latest/current
-  - The filter "version_latest_ind = 1" is used for domain tables, whereas "version_current_ind = 1" is used for transaction tables.
-  - Because this only contains latest records, the end dates have been supressed; they are always null.
-
-NOTES:
-
-  Content views are provided as a way of exposing the current state records
-  of Version tables.  This makes it possible to query the dbo schema consistently
-  without special logic being applied by the analyst.
-
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-28  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################
-*/
-
-CREATE VIEW dbo.[customer] AS
-SELECT 
-
-  -- KEY COLUMNS
-  vx.customer_key
+CREATE TABLE dbo.[invoice] (
+  -- NAMED KEY COLUMN
+  invoice_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , v.customer_uid
+, invoice_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , v.customer_legal_name
- , v.parent_organization_name
- , v.customer_nbr
- , v.risk_score_val
+, invoice_number VARCHAR(200)
+, provider_account_number VARCHAR(200)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, v.source_uid
-, v.source_rev_dtm
-, v.source_rev_actor
-
-  -- VERSION COLUMNS
-, v.customer_version_key
-, vx.version_index
-, v.version_dtm
-, vx.version_current_ind
-
-  -- BATCH COLUMNS
-, v.version_batch_key
-
-FROM
-ver.customer v
-INNER JOIN vex.customer vx ON
-  vx.customer_version_key = v.customer_version_key
-WHERE
-vx.version_latest_ind = 1
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[customer_settle]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[customer_settle]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[customer_settle]
-
-DESCRIPTION: Truncates corresponding VEX table and reloads it using settle logic.
-
-PARAMETERS: None.
-
-OUTPUT PARAMETERS: None.
-
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-
-HISTORY:
-
-Date        Name            Version  Description
----------------------------------------------------------------------------------
-2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[customer_settle] AS
-BEGIN
-
-SET NOCOUNT ON;
-
-TRUNCATE TABLE vex.[customer];
-
-INSERT INTO vex.[customer] (
-  customer_version_key
-, next_customer_version_key
-, customer_key
-, version_index
-, version_current_ind
-, version_latest_ind
-, end_version_dtmx
-, end_version_batch_key
-, end_source_rev_dtmx
-)
-SELECT
-
-  v.customer_version_key
-
-, LEAD(v.customer_version_key, 1) OVER (
-    PARTITION BY v.customer_uid
-    ORDER BY v.customer_version_key ASC) AS next_customer_version_key
-
-, MIN(v.customer_version_key) OVER (
-    PARTITION BY v.customer_uid) AS customer_key
-
-, ROW_NUMBER() OVER (
-    PARTITION BY v.customer_uid
-    ORDER BY v.customer_version_key ASC) AS version_index
-
-    -- XOR "^" inverts the deleted indicator
-  , CASE
-    WHEN LAST_VALUE(v.customer_version_key) OVER (
-      PARTITION BY v.customer_uid
-      ORDER BY v.customer_version_key ASC
-      RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_version_key THEN v.source_delete_ind ^ 1
-    ELSE 0 END AS version_current_ind
-
-, CASE
-  WHEN LAST_VALUE(v.customer_version_key) OVER (
-    PARTITION BY v.customer_uid
-    ORDER BY v.customer_version_key ASC
-    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_version_key THEN 1
-  ELSE 0 END AS version_latest_ind
-
-, LEAD(v.version_dtm, 1) OVER (
-    PARTITION BY v.customer_uid
-    ORDER BY v.customer_version_key ASC) AS end_version_dtmx
-
-  -- Back the LEAD batch key off by 1
-, LEAD(v.version_batch_key, 1) OVER (
-    PARTITION BY v.customer_uid
-    ORDER BY v.customer_version_key ASC) - 1 AS end_version_batch_key
-
-, LEAD(v.source_rev_dtm, 1) OVER (
-    PARTITION BY v.customer_uid
-    ORDER BY v.customer_version_key ASC) AS end_source_rev_dtmx
-
-FROM
-ver.customer v
-
-END;
-GO
-
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[customer_settle_merge]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[customer_settle_merge]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[customer_settle_merge]
-
-DESCRIPTION: Performs a merge of all version records related to grain values that have been affected
-  on or after the specified batch key.
-
-PARAMETERS:
-
-  @begin_version_batch_key INT = The minimum batch key used to determine with grain records should
-    be considered in the settle.
-  
-OUTPUT PARAMETERS: None.
-  
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-  
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[customer_settle_merge] 
-  @begin_version_batch_key INT
-, @suspend_cleanup_ind BIT = 0  
-AS
-BEGIN
-
-  SET NOCOUNT ON;
-
-  -- cleanup orphaned VEX records
-  IF @suspend_cleanup_ind = 0
-  BEGIN
-
-    DELETE vt FROM
-    vex.customer vt
-    WHERE
-    NOT EXISTS (
-      SELECT 1 FROM ver.customer vs
-      WHERE vs.customer_version_key = vt.customer_version_key
-    );
-
-  END
-
-
-  MERGE vex.customer WITH (HOLDLOCK) AS vt
-
-  USING (
-  
-    SELECT
-
-      v.customer_version_key
-
-    , LEAD(v.customer_version_key, 1) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_version_key ASC) AS next_customer_version_key
-
-    , MIN(v.customer_version_key) OVER (
-        PARTITION BY v.customer_uid) AS customer_key
-
-    , ROW_NUMBER() OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_version_key ASC) AS version_index
-
-      -- XOR "^" inverts the deleted indicator
-    , CASE
-      WHEN LAST_VALUE(v.customer_version_key) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_version_key THEN v.source_delete_ind ^ 1
-      ELSE 0 END AS version_current_ind
-
-    , CASE
-      WHEN LAST_VALUE(v.customer_version_key) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.customer_version_key THEN 1
-      ELSE 0 END AS version_latest_ind
-
-    , LEAD(v.version_dtm, 1) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_version_key ASC) AS end_version_dtmx
-
-      -- Back the LEAD batch key off by 1
-    , LEAD(v.version_batch_key, 1) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_version_key ASC) - 1 AS end_version_batch_key
-
-    , LEAD(v.source_rev_dtm, 1) OVER (
-        PARTITION BY v.customer_uid
-        ORDER BY v.customer_version_key ASC) AS end_source_rev_dtmx
-
-    FROM
-    ver.customer v
-    WHERE
-    EXISTS (
-
-	    SELECT 1 FROM ver.customer vg
-	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
-      vg.customer_uid = v.customer_uid
-
-    )
-
-  ) AS vs
-
-  ON vs.customer_version_key = vt.customer_version_key 
-
-  WHEN MATCHED
-    AND COALESCE(vs.next_customer_version_key, -1) != 
-      COALESCE(vt.next_customer_version_key, -1) THEN
-
-    UPDATE SET
-      next_customer_version_key = vs.next_customer_version_key
-    , customer_key = vs.customer_key
-    , version_index = vs.version_index
-    , version_current_ind = vs.version_current_ind
-    , version_latest_ind = vs.version_latest_ind
-    , end_version_dtmx = vs.end_version_dtmx
-    , end_version_batch_key = vs.end_version_batch_key
-    , end_source_rev_dtmx = vs.end_source_rev_dtmx
-
-  WHEN NOT MATCHED BY TARGET THEN
-
-    INSERT (
-      customer_version_key
-    , next_customer_version_key
-    , customer_key
-    , version_index
-    , version_current_ind
-    , version_latest_ind
-    , end_version_dtmx
-    , end_version_batch_key
-    , end_source_rev_dtmx
-    )  VALUES (
-      vs.customer_version_key
-    , vs.next_customer_version_key
-    , vs.customer_key
-    , vs.version_index
-    , vs.version_current_ind
-    , vs.version_latest_ind
-    , vs.end_version_dtmx
-    , vs.end_version_batch_key
-    , vs.end_source_rev_dtmx
-    )
-
-  ;
-
-
-END;
-GO
-
-  
-/*
-##################################################################################################  
-###########  ENTITY OBJECT DEFINITIONS FOR [Legal Entity]
-##################################################################################################
-*/
-
-IF OBJECT_ID(N'ver.[legal_entity]', N'U') IS NOT NULL
-  DROP TABLE ver.[legal_entity]
-;
-
-CREATE TABLE ver.[legal_entity] (
-
-  -- VERSION IDENTITY KEY COLUMN
-  legal_entity_version_key INT IDENTITY(1000,1)
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_invoice_pk PRIMARY KEY CLUSTERED (invoice_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.invoice_version));
+
+/* ##################################################################################
+TABLE: Invoice Detail
+##################################################################################### */
+
+CREATE TABLE dbo.[invoice_detail] (
+  -- NAMED KEY COLUMN
+  invoice_detail_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , legal_entity_uid VARCHAR(200) NOT NULL
+, invoice_detail_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
- , parent_legal_entity_uid VARCHAR(200)
- , incorporation_country_uid VARCHAR(200)
- , gl_currency_uid VARCHAR(200)
+  -- ENTITY REFERENCE COLUMNS
+, icd10_diagnosis_uid VARCHAR(200)
 
   -- ATTRIBUTE COLUMNS
- , legal_entity_name VARCHAR(200) NOT NULL
- , legal_entity_code VARCHAR(20)
+, line_desc VARCHAR(1000)
+, line_amount DECIMAL(20,12)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, source_uid VARCHAR(200) NOT NULL
-, source_rev_dtm DATETIME NOT NULL
-, source_rev_actor VARCHAR(200) NULL
-, source_delete_ind BIT NOT NULL
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-  -- VERSION COLUMNS
-, version_dtm DATETIME2
-, version_batch_key INT
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-, CONSTRAINT ver_legal_entity_pk
-    PRIMARY KEY NONCLUSTERED (legal_entity_version_key)
-);
-GO
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-CREATE CLUSTERED INDEX ver_legal_entity_cx ON
-  ver.[legal_entity] (legal_entity_uid);
-GO
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-IF OBJECT_ID(N'vex.[legal_entity]', N'U') IS NOT NULL
-DROP TABLE vex.[legal_entity]
-;
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-CREATE TABLE [vex].[legal_entity] (
-  
-  -- GENERAL NOTES: Many columns are marked as nullable in order to improve load efficiency. 
-  --   This is safe, assuming that loading is only handled through dedicated procs.
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_invoice_detail_pk PRIMARY KEY CLUSTERED (invoice_detail_uid)
 
-  -- KEY COLUMNS
-  legal_entity_version_key INT NOT NULL
-, next_legal_entity_version_key INT NULL
-, legal_entity_key INT NULL
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.invoice_detail_version));
 
-  -- VERSION ATTRIBUTES
-, version_index INT NULL
-, version_current_ind BIT NULL
-, version_latest_ind BIT NULL
+/* ##################################################################################
+TABLE: Payee
+##################################################################################### */
 
-  -- END OF RANGE COLUMNS
-, end_version_dtmx DATETIME2 NULL
-, end_version_batch_key INT NULL
-, end_source_rev_dtmx DATETIME2 NULL
-
-, CONSTRAINT vex_legal_entity_pk
-    PRIMARY KEY (legal_entity_version_key)
-)
-;
-GO
-
-CREATE UNIQUE INDEX vex_legal_entity_u1 ON
-  vex.[legal_entity] (legal_entity_key)
-  WHERE version_latest_ind = 1;
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'dbo.[legal_entity]', N'V') IS NOT NULL
-DROP VIEW dbo.[legal_entity]
-;
-GO
-/* ################################################################################
-
-OBJECT: VIEW dbo.[legal_entity]
-
-DESCRIPTION: Exposes the current view of the version legal_entity table,
-  either latest or current version records.
-  
-RETURN DATASET:
-
-  - Columns are identical to the corresponding version table.
-  - The version key is retained for reference purposes.
-  - Assumes that grain column in the version table is unique based on version latest/current
-  - The filter "version_latest_ind = 1" is used for domain tables, whereas "version_current_ind = 1" is used for transaction tables.
-  - Because this only contains latest records, the end dates have been supressed; they are always null.
-
-NOTES:
-
-  Content views are provided as a way of exposing the current state records
-  of Version tables.  This makes it possible to query the dbo schema consistently
-  without special logic being applied by the analyst.
-
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-28  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################
-*/
-
-CREATE VIEW dbo.[legal_entity] AS
-SELECT 
-
-  -- KEY COLUMNS
-  vx.legal_entity_key
+CREATE TABLE dbo.[payee] (
+  -- NAMED KEY COLUMN
+  payee_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , v.legal_entity_uid
+, payee_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
- , v.parent_legal_entity_uid
- , v.incorporation_country_uid
- , v.gl_currency_uid
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , v.legal_entity_name
- , v.legal_entity_code
+, first_name VARCHAR(200)
+, last_name VARCHAR(200)
+, full_name VARCHAR(200)
+, coll_full_name VARCHAR(200)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, v.source_uid
-, v.source_rev_dtm
-, v.source_rev_actor
-
-  -- VERSION COLUMNS
-, v.legal_entity_version_key
-, vx.version_index
-, v.version_dtm
-, vx.version_current_ind
-
-  -- BATCH COLUMNS
-, v.version_batch_key
-
-FROM
-ver.legal_entity v
-INNER JOIN vex.legal_entity vx ON
-  vx.legal_entity_version_key = v.legal_entity_version_key
-WHERE
-vx.version_latest_ind = 1
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[legal_entity_settle]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[legal_entity_settle]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[legal_entity_settle]
-
-DESCRIPTION: Truncates corresponding VEX table and reloads it using settle logic.
-
-PARAMETERS: None.
-
-OUTPUT PARAMETERS: None.
-
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-
-HISTORY:
-
-Date        Name            Version  Description
----------------------------------------------------------------------------------
-2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[legal_entity_settle] AS
-BEGIN
-
-SET NOCOUNT ON;
-
-TRUNCATE TABLE vex.[legal_entity];
-
-INSERT INTO vex.[legal_entity] (
-  legal_entity_version_key
-, next_legal_entity_version_key
-, legal_entity_key
-, version_index
-, version_current_ind
-, version_latest_ind
-, end_version_dtmx
-, end_version_batch_key
-, end_source_rev_dtmx
-)
-SELECT
-
-  v.legal_entity_version_key
-
-, LEAD(v.legal_entity_version_key, 1) OVER (
-    PARTITION BY v.legal_entity_uid
-    ORDER BY v.legal_entity_version_key ASC) AS next_legal_entity_version_key
-
-, MIN(v.legal_entity_version_key) OVER (
-    PARTITION BY v.legal_entity_uid) AS legal_entity_key
-
-, ROW_NUMBER() OVER (
-    PARTITION BY v.legal_entity_uid
-    ORDER BY v.legal_entity_version_key ASC) AS version_index
-
-    -- XOR "^" inverts the deleted indicator
-  , CASE
-    WHEN LAST_VALUE(v.legal_entity_version_key) OVER (
-      PARTITION BY v.legal_entity_uid
-      ORDER BY v.legal_entity_version_key ASC
-      RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.legal_entity_version_key THEN v.source_delete_ind ^ 1
-    ELSE 0 END AS version_current_ind
-
-, CASE
-  WHEN LAST_VALUE(v.legal_entity_version_key) OVER (
-    PARTITION BY v.legal_entity_uid
-    ORDER BY v.legal_entity_version_key ASC
-    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.legal_entity_version_key THEN 1
-  ELSE 0 END AS version_latest_ind
-
-, LEAD(v.version_dtm, 1) OVER (
-    PARTITION BY v.legal_entity_uid
-    ORDER BY v.legal_entity_version_key ASC) AS end_version_dtmx
-
-  -- Back the LEAD batch key off by 1
-, LEAD(v.version_batch_key, 1) OVER (
-    PARTITION BY v.legal_entity_uid
-    ORDER BY v.legal_entity_version_key ASC) - 1 AS end_version_batch_key
-
-, LEAD(v.source_rev_dtm, 1) OVER (
-    PARTITION BY v.legal_entity_uid
-    ORDER BY v.legal_entity_version_key ASC) AS end_source_rev_dtmx
-
-FROM
-ver.legal_entity v
-
-END;
-GO
-
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[legal_entity_settle_merge]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[legal_entity_settle_merge]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[legal_entity_settle_merge]
-
-DESCRIPTION: Performs a merge of all version records related to grain values that have been affected
-  on or after the specified batch key.
-
-PARAMETERS:
-
-  @begin_version_batch_key INT = The minimum batch key used to determine with grain records should
-    be considered in the settle.
-  
-OUTPUT PARAMETERS: None.
-  
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-  
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[legal_entity_settle_merge] 
-  @begin_version_batch_key INT
-, @suspend_cleanup_ind BIT = 0  
-AS
-BEGIN
-
-  SET NOCOUNT ON;
-
-  -- cleanup orphaned VEX records
-  IF @suspend_cleanup_ind = 0
-  BEGIN
-
-    DELETE vt FROM
-    vex.legal_entity vt
-    WHERE
-    NOT EXISTS (
-      SELECT 1 FROM ver.legal_entity vs
-      WHERE vs.legal_entity_version_key = vt.legal_entity_version_key
-    );
-
-  END
-
-
-  MERGE vex.legal_entity WITH (HOLDLOCK) AS vt
-
-  USING (
-  
-    SELECT
-
-      v.legal_entity_version_key
-
-    , LEAD(v.legal_entity_version_key, 1) OVER (
-        PARTITION BY v.legal_entity_uid
-        ORDER BY v.legal_entity_version_key ASC) AS next_legal_entity_version_key
-
-    , MIN(v.legal_entity_version_key) OVER (
-        PARTITION BY v.legal_entity_uid) AS legal_entity_key
-
-    , ROW_NUMBER() OVER (
-        PARTITION BY v.legal_entity_uid
-        ORDER BY v.legal_entity_version_key ASC) AS version_index
-
-      -- XOR "^" inverts the deleted indicator
-    , CASE
-      WHEN LAST_VALUE(v.legal_entity_version_key) OVER (
-        PARTITION BY v.legal_entity_uid
-        ORDER BY v.legal_entity_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.legal_entity_version_key THEN v.source_delete_ind ^ 1
-      ELSE 0 END AS version_current_ind
-
-    , CASE
-      WHEN LAST_VALUE(v.legal_entity_version_key) OVER (
-        PARTITION BY v.legal_entity_uid
-        ORDER BY v.legal_entity_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.legal_entity_version_key THEN 1
-      ELSE 0 END AS version_latest_ind
-
-    , LEAD(v.version_dtm, 1) OVER (
-        PARTITION BY v.legal_entity_uid
-        ORDER BY v.legal_entity_version_key ASC) AS end_version_dtmx
-
-      -- Back the LEAD batch key off by 1
-    , LEAD(v.version_batch_key, 1) OVER (
-        PARTITION BY v.legal_entity_uid
-        ORDER BY v.legal_entity_version_key ASC) - 1 AS end_version_batch_key
-
-    , LEAD(v.source_rev_dtm, 1) OVER (
-        PARTITION BY v.legal_entity_uid
-        ORDER BY v.legal_entity_version_key ASC) AS end_source_rev_dtmx
-
-    FROM
-    ver.legal_entity v
-    WHERE
-    EXISTS (
-
-	    SELECT 1 FROM ver.legal_entity vg
-	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
-      vg.legal_entity_uid = v.legal_entity_uid
-
-    )
-
-  ) AS vs
-
-  ON vs.legal_entity_version_key = vt.legal_entity_version_key 
-
-  WHEN MATCHED
-    AND COALESCE(vs.next_legal_entity_version_key, -1) != 
-      COALESCE(vt.next_legal_entity_version_key, -1) THEN
-
-    UPDATE SET
-      next_legal_entity_version_key = vs.next_legal_entity_version_key
-    , legal_entity_key = vs.legal_entity_key
-    , version_index = vs.version_index
-    , version_current_ind = vs.version_current_ind
-    , version_latest_ind = vs.version_latest_ind
-    , end_version_dtmx = vs.end_version_dtmx
-    , end_version_batch_key = vs.end_version_batch_key
-    , end_source_rev_dtmx = vs.end_source_rev_dtmx
-
-  WHEN NOT MATCHED BY TARGET THEN
-
-    INSERT (
-      legal_entity_version_key
-    , next_legal_entity_version_key
-    , legal_entity_key
-    , version_index
-    , version_current_ind
-    , version_latest_ind
-    , end_version_dtmx
-    , end_version_batch_key
-    , end_source_rev_dtmx
-    )  VALUES (
-      vs.legal_entity_version_key
-    , vs.next_legal_entity_version_key
-    , vs.legal_entity_key
-    , vs.version_index
-    , vs.version_current_ind
-    , vs.version_latest_ind
-    , vs.end_version_dtmx
-    , vs.end_version_batch_key
-    , vs.end_source_rev_dtmx
-    )
-
-  ;
-
-
-END;
-GO
-
-  
-/*
-##################################################################################################  
-###########  ENTITY OBJECT DEFINITIONS FOR [Legal Entity Fiscal Period]
-##################################################################################################
-*/
-
-IF OBJECT_ID(N'ver.[legal_entity_fiscal_period]', N'U') IS NOT NULL
-  DROP TABLE ver.[legal_entity_fiscal_period]
-;
-
-CREATE TABLE ver.[legal_entity_fiscal_period] (
-
-  -- VERSION IDENTITY KEY COLUMN
-  legal_entity_fiscal_period_version_key INT IDENTITY(1000,1)
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_payee_pk PRIMARY KEY CLUSTERED (payee_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.payee_version));
+
+/* ##################################################################################
+TABLE: Payee Type
+##################################################################################### */
+
+CREATE TABLE dbo.[payee_type] (
+  -- NAMED KEY COLUMN
+  payee_type_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , legal_entity_uid VARCHAR(200) NOT NULL
- , fiscal_year INT NOT NULL
- , fiscal_period_of_year_index INT NOT NULL
+, payee_type_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , begin_fiscal_period_date DATE NOT NULL
- , end_fiscal_period_date DATE
- , display_month_of_year INT NOT NULL
+, payee_type_code VARCHAR(20)
+, payee_type_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, source_uid VARCHAR(200) NOT NULL
-, source_rev_dtm DATETIME NOT NULL
-, source_rev_actor VARCHAR(200) NULL
-, source_delete_ind BIT NOT NULL
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-  -- VERSION COLUMNS
-, version_dtm DATETIME2
-, version_batch_key INT
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-, CONSTRAINT ver_legal_entity_fiscal_period_pk
-    PRIMARY KEY NONCLUSTERED (legal_entity_fiscal_period_version_key)
-);
-GO
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-CREATE CLUSTERED INDEX ver_legal_entity_fiscal_period_cx ON
-  ver.[legal_entity_fiscal_period] (legal_entity_uid, fiscal_year, fiscal_period_of_year_index);
-GO
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-IF OBJECT_ID(N'vex.[legal_entity_fiscal_period]', N'U') IS NOT NULL
-DROP TABLE vex.[legal_entity_fiscal_period]
-;
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-CREATE TABLE [vex].[legal_entity_fiscal_period] (
-  
-  -- GENERAL NOTES: Many columns are marked as nullable in order to improve load efficiency. 
-  --   This is safe, assuming that loading is only handled through dedicated procs.
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_payee_type_pk PRIMARY KEY CLUSTERED (payee_type_uid)
 
-  -- KEY COLUMNS
-  legal_entity_fiscal_period_version_key INT NOT NULL
-, next_legal_entity_fiscal_period_version_key INT NULL
-, legal_entity_fiscal_period_key INT NULL
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.payee_type_version));
 
-  -- VERSION ATTRIBUTES
-, version_index INT NULL
-, version_current_ind BIT NULL
-, version_latest_ind BIT NULL
+/* ##################################################################################
+TABLE: Invoice Claim Payment
+##################################################################################### */
 
-  -- END OF RANGE COLUMNS
-, end_version_dtmx DATETIME2 NULL
-, end_version_batch_key INT NULL
-, end_source_rev_dtmx DATETIME2 NULL
-
-, CONSTRAINT vex_legal_entity_fiscal_period_pk
-    PRIMARY KEY (legal_entity_fiscal_period_version_key)
-)
-;
-GO
-
-CREATE UNIQUE INDEX vex_legal_entity_fiscal_period_u1 ON
-  vex.[legal_entity_fiscal_period] (legal_entity_fiscal_period_key)
-  WHERE version_latest_ind = 1;
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'dbo.[legal_entity_fiscal_period]', N'V') IS NOT NULL
-DROP VIEW dbo.[legal_entity_fiscal_period]
-;
-GO
-/* ################################################################################
-
-OBJECT: VIEW dbo.[legal_entity_fiscal_period]
-
-DESCRIPTION: Exposes the current view of the version legal_entity_fiscal_period table,
-  either latest or current version records.
-  
-RETURN DATASET:
-
-  - Columns are identical to the corresponding version table.
-  - The version key is retained for reference purposes.
-  - Assumes that grain column in the version table is unique based on version latest/current
-  - The filter "version_latest_ind = 1" is used for domain tables, whereas "version_current_ind = 1" is used for transaction tables.
-  - Because this only contains latest records, the end dates have been supressed; they are always null.
-
-NOTES:
-
-  Content views are provided as a way of exposing the current state records
-  of Version tables.  This makes it possible to query the dbo schema consistently
-  without special logic being applied by the analyst.
-
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-28  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################
-*/
-
-CREATE VIEW dbo.[legal_entity_fiscal_period] AS
-SELECT 
-
-  -- KEY COLUMNS
-  vx.legal_entity_fiscal_period_key
+CREATE TABLE dbo.[invoice_claim_payment] (
+  -- NAMED KEY COLUMN
+  invoice_claim_payment_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , v.legal_entity_uid
- , v.fiscal_year
- , v.fiscal_period_of_year_index
+, invoice_claim_payment_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
+  -- ENTITY REFERENCE COLUMNS
+, invoice_uid VARCHAR(200)
 
   -- ATTRIBUTE COLUMNS
- , v.begin_fiscal_period_date
- , v.end_fiscal_period_date
- , v.display_month_of_year
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, v.source_uid
-, v.source_rev_dtm
-, v.source_rev_actor
-
-  -- VERSION COLUMNS
-, v.legal_entity_fiscal_period_version_key
-, vx.version_index
-, v.version_dtm
-, vx.version_current_ind
-
-  -- BATCH COLUMNS
-, v.version_batch_key
-
-FROM
-ver.legal_entity_fiscal_period v
-INNER JOIN vex.legal_entity_fiscal_period vx ON
-  vx.legal_entity_fiscal_period_version_key = v.legal_entity_fiscal_period_version_key
-WHERE
-vx.version_latest_ind = 1
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[legal_entity_fiscal_period_settle]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[legal_entity_fiscal_period_settle]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[legal_entity_fiscal_period_settle]
-
-DESCRIPTION: Truncates corresponding VEX table and reloads it using settle logic.
-
-PARAMETERS: None.
-
-OUTPUT PARAMETERS: None.
-
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-
-HISTORY:
-
-Date        Name            Version  Description
----------------------------------------------------------------------------------
-2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[legal_entity_fiscal_period_settle] AS
-BEGIN
-
-SET NOCOUNT ON;
-
-TRUNCATE TABLE vex.[legal_entity_fiscal_period];
-
-INSERT INTO vex.[legal_entity_fiscal_period] (
-  legal_entity_fiscal_period_version_key
-, next_legal_entity_fiscal_period_version_key
-, legal_entity_fiscal_period_key
-, version_index
-, version_current_ind
-, version_latest_ind
-, end_version_dtmx
-, end_version_batch_key
-, end_source_rev_dtmx
-)
-SELECT
-
-  v.legal_entity_fiscal_period_version_key
-
-, LEAD(v.legal_entity_fiscal_period_version_key, 1) OVER (
-    PARTITION BY v.legal_entity_uid, v.fiscal_year, v.fiscal_period_of_year_index
-    ORDER BY v.legal_entity_fiscal_period_version_key ASC) AS next_legal_entity_fiscal_period_version_key
-
-, MIN(v.legal_entity_fiscal_period_version_key) OVER (
-    PARTITION BY v.legal_entity_uid, v.fiscal_year, v.fiscal_period_of_year_index) AS legal_entity_fiscal_period_key
-
-, ROW_NUMBER() OVER (
-    PARTITION BY v.legal_entity_uid, v.fiscal_year, v.fiscal_period_of_year_index
-    ORDER BY v.legal_entity_fiscal_period_version_key ASC) AS version_index
-
-    -- XOR "^" inverts the deleted indicator
-  , CASE
-    WHEN LAST_VALUE(v.legal_entity_fiscal_period_version_key) OVER (
-      PARTITION BY v.legal_entity_uid, v.fiscal_year, v.fiscal_period_of_year_index
-      ORDER BY v.legal_entity_fiscal_period_version_key ASC
-      RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.legal_entity_fiscal_period_version_key THEN v.source_delete_ind ^ 1
-    ELSE 0 END AS version_current_ind
-
-, CASE
-  WHEN LAST_VALUE(v.legal_entity_fiscal_period_version_key) OVER (
-    PARTITION BY v.legal_entity_uid, v.fiscal_year, v.fiscal_period_of_year_index
-    ORDER BY v.legal_entity_fiscal_period_version_key ASC
-    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.legal_entity_fiscal_period_version_key THEN 1
-  ELSE 0 END AS version_latest_ind
-
-, LEAD(v.version_dtm, 1) OVER (
-    PARTITION BY v.legal_entity_uid, v.fiscal_year, v.fiscal_period_of_year_index
-    ORDER BY v.legal_entity_fiscal_period_version_key ASC) AS end_version_dtmx
-
-  -- Back the LEAD batch key off by 1
-, LEAD(v.version_batch_key, 1) OVER (
-    PARTITION BY v.legal_entity_uid, v.fiscal_year, v.fiscal_period_of_year_index
-    ORDER BY v.legal_entity_fiscal_period_version_key ASC) - 1 AS end_version_batch_key
-
-, LEAD(v.source_rev_dtm, 1) OVER (
-    PARTITION BY v.legal_entity_uid, v.fiscal_year, v.fiscal_period_of_year_index
-    ORDER BY v.legal_entity_fiscal_period_version_key ASC) AS end_source_rev_dtmx
-
-FROM
-ver.legal_entity_fiscal_period v
-
-END;
-GO
-
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[legal_entity_fiscal_period_settle_merge]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[legal_entity_fiscal_period_settle_merge]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[legal_entity_fiscal_period_settle_merge]
-
-DESCRIPTION: Performs a merge of all version records related to grain values that have been affected
-  on or after the specified batch key.
-
-PARAMETERS:
-
-  @begin_version_batch_key INT = The minimum batch key used to determine with grain records should
-    be considered in the settle.
-  
-OUTPUT PARAMETERS: None.
-  
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-  
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[legal_entity_fiscal_period_settle_merge] 
-  @begin_version_batch_key INT
-, @suspend_cleanup_ind BIT = 0  
-AS
-BEGIN
-
-  SET NOCOUNT ON;
-
-  -- cleanup orphaned VEX records
-  IF @suspend_cleanup_ind = 0
-  BEGIN
-
-    DELETE vt FROM
-    vex.legal_entity_fiscal_period vt
-    WHERE
-    NOT EXISTS (
-      SELECT 1 FROM ver.legal_entity_fiscal_period vs
-      WHERE vs.legal_entity_fiscal_period_version_key = vt.legal_entity_fiscal_period_version_key
-    );
-
-  END
-
-
-  MERGE vex.legal_entity_fiscal_period WITH (HOLDLOCK) AS vt
-
-  USING (
-  
-    SELECT
-
-      v.legal_entity_fiscal_period_version_key
-
-    , LEAD(v.legal_entity_fiscal_period_version_key, 1) OVER (
-        PARTITION BY v.legal_entity_uid, v.fiscal_year, v.fiscal_period_of_year_index
-        ORDER BY v.legal_entity_fiscal_period_version_key ASC) AS next_legal_entity_fiscal_period_version_key
-
-    , MIN(v.legal_entity_fiscal_period_version_key) OVER (
-        PARTITION BY v.legal_entity_uid, v.fiscal_year, v.fiscal_period_of_year_index) AS legal_entity_fiscal_period_key
-
-    , ROW_NUMBER() OVER (
-        PARTITION BY v.legal_entity_uid, v.fiscal_year, v.fiscal_period_of_year_index
-        ORDER BY v.legal_entity_fiscal_period_version_key ASC) AS version_index
-
-      -- XOR "^" inverts the deleted indicator
-    , CASE
-      WHEN LAST_VALUE(v.legal_entity_fiscal_period_version_key) OVER (
-        PARTITION BY v.legal_entity_uid, v.fiscal_year, v.fiscal_period_of_year_index
-        ORDER BY v.legal_entity_fiscal_period_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.legal_entity_fiscal_period_version_key THEN v.source_delete_ind ^ 1
-      ELSE 0 END AS version_current_ind
-
-    , CASE
-      WHEN LAST_VALUE(v.legal_entity_fiscal_period_version_key) OVER (
-        PARTITION BY v.legal_entity_uid, v.fiscal_year, v.fiscal_period_of_year_index
-        ORDER BY v.legal_entity_fiscal_period_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.legal_entity_fiscal_period_version_key THEN 1
-      ELSE 0 END AS version_latest_ind
-
-    , LEAD(v.version_dtm, 1) OVER (
-        PARTITION BY v.legal_entity_uid, v.fiscal_year, v.fiscal_period_of_year_index
-        ORDER BY v.legal_entity_fiscal_period_version_key ASC) AS end_version_dtmx
-
-      -- Back the LEAD batch key off by 1
-    , LEAD(v.version_batch_key, 1) OVER (
-        PARTITION BY v.legal_entity_uid, v.fiscal_year, v.fiscal_period_of_year_index
-        ORDER BY v.legal_entity_fiscal_period_version_key ASC) - 1 AS end_version_batch_key
-
-    , LEAD(v.source_rev_dtm, 1) OVER (
-        PARTITION BY v.legal_entity_uid, v.fiscal_year, v.fiscal_period_of_year_index
-        ORDER BY v.legal_entity_fiscal_period_version_key ASC) AS end_source_rev_dtmx
-
-    FROM
-    ver.legal_entity_fiscal_period v
-    WHERE
-    EXISTS (
-
-	    SELECT 1 FROM ver.legal_entity_fiscal_period vg
-	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
-      vg.legal_entity_uid = v.legal_entity_uid
-      AND vg.fiscal_year = v.fiscal_year
-      AND vg.fiscal_period_of_year_index = v.fiscal_period_of_year_index
-
-    )
-
-  ) AS vs
-
-  ON vs.legal_entity_fiscal_period_version_key = vt.legal_entity_fiscal_period_version_key 
-
-  WHEN MATCHED
-    AND COALESCE(vs.next_legal_entity_fiscal_period_version_key, -1) != 
-      COALESCE(vt.next_legal_entity_fiscal_period_version_key, -1) THEN
-
-    UPDATE SET
-      next_legal_entity_fiscal_period_version_key = vs.next_legal_entity_fiscal_period_version_key
-    , legal_entity_fiscal_period_key = vs.legal_entity_fiscal_period_key
-    , version_index = vs.version_index
-    , version_current_ind = vs.version_current_ind
-    , version_latest_ind = vs.version_latest_ind
-    , end_version_dtmx = vs.end_version_dtmx
-    , end_version_batch_key = vs.end_version_batch_key
-    , end_source_rev_dtmx = vs.end_source_rev_dtmx
-
-  WHEN NOT MATCHED BY TARGET THEN
-
-    INSERT (
-      legal_entity_fiscal_period_version_key
-    , next_legal_entity_fiscal_period_version_key
-    , legal_entity_fiscal_period_key
-    , version_index
-    , version_current_ind
-    , version_latest_ind
-    , end_version_dtmx
-    , end_version_batch_key
-    , end_source_rev_dtmx
-    )  VALUES (
-      vs.legal_entity_fiscal_period_version_key
-    , vs.next_legal_entity_fiscal_period_version_key
-    , vs.legal_entity_fiscal_period_key
-    , vs.version_index
-    , vs.version_current_ind
-    , vs.version_latest_ind
-    , vs.end_version_dtmx
-    , vs.end_version_batch_key
-    , vs.end_source_rev_dtmx
-    )
-
-  ;
-
-
-END;
-GO
-
-  
-/*
-##################################################################################################  
-###########  ENTITY OBJECT DEFINITIONS FOR [Legal Entity Holiday]
-##################################################################################################
-*/
-
-IF OBJECT_ID(N'ver.[legal_entity_holiday]', N'U') IS NOT NULL
-  DROP TABLE ver.[legal_entity_holiday]
-;
-
-CREATE TABLE ver.[legal_entity_holiday] (
-
-  -- VERSION IDENTITY KEY COLUMN
-  legal_entity_holiday_version_key INT IDENTITY(1000,1)
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_invoice_claim_payment_pk PRIMARY KEY CLUSTERED (invoice_claim_payment_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.invoice_claim_payment_version));
+
+/* ##################################################################################
+TABLE: Payment Type
+##################################################################################### */
+
+CREATE TABLE dbo.[payment_type] (
+  -- NAMED KEY COLUMN
+  payment_type_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , legal_entity_uid VARCHAR(200) NOT NULL
- , holiday_date DATE NOT NULL
+, payment_type_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , holiday_name VARCHAR(200)
+, payment_type_code VARCHAR(20)
+, payment_type_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, source_uid VARCHAR(200) NOT NULL
-, source_rev_dtm DATETIME NOT NULL
-, source_rev_actor VARCHAR(200) NULL
-, source_delete_ind BIT NOT NULL
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-  -- VERSION COLUMNS
-, version_dtm DATETIME2
-, version_batch_key INT
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-, CONSTRAINT ver_legal_entity_holiday_pk
-    PRIMARY KEY NONCLUSTERED (legal_entity_holiday_version_key)
-);
-GO
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-CREATE CLUSTERED INDEX ver_legal_entity_holiday_cx ON
-  ver.[legal_entity_holiday] (legal_entity_uid, holiday_date);
-GO
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-IF OBJECT_ID(N'vex.[legal_entity_holiday]', N'U') IS NOT NULL
-DROP TABLE vex.[legal_entity_holiday]
-;
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-CREATE TABLE [vex].[legal_entity_holiday] (
-  
-  -- GENERAL NOTES: Many columns are marked as nullable in order to improve load efficiency. 
-  --   This is safe, assuming that loading is only handled through dedicated procs.
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_payment_type_pk PRIMARY KEY CLUSTERED (payment_type_uid)
 
-  -- KEY COLUMNS
-  legal_entity_holiday_version_key INT NOT NULL
-, next_legal_entity_holiday_version_key INT NULL
-, legal_entity_holiday_key INT NULL
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.payment_type_version));
 
-  -- VERSION ATTRIBUTES
-, version_index INT NULL
-, version_current_ind BIT NULL
-, version_latest_ind BIT NULL
+/* ##################################################################################
+TABLE: Recovery
+##################################################################################### */
 
-  -- END OF RANGE COLUMNS
-, end_version_dtmx DATETIME2 NULL
-, end_version_batch_key INT NULL
-, end_source_rev_dtmx DATETIME2 NULL
-
-, CONSTRAINT vex_legal_entity_holiday_pk
-    PRIMARY KEY (legal_entity_holiday_version_key)
-)
-;
-GO
-
-CREATE UNIQUE INDEX vex_legal_entity_holiday_u1 ON
-  vex.[legal_entity_holiday] (legal_entity_holiday_key)
-  WHERE version_latest_ind = 1;
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'dbo.[legal_entity_holiday]', N'V') IS NOT NULL
-DROP VIEW dbo.[legal_entity_holiday]
-;
-GO
-/* ################################################################################
-
-OBJECT: VIEW dbo.[legal_entity_holiday]
-
-DESCRIPTION: Exposes the current view of the version legal_entity_holiday table,
-  either latest or current version records.
-  
-RETURN DATASET:
-
-  - Columns are identical to the corresponding version table.
-  - The version key is retained for reference purposes.
-  - Assumes that grain column in the version table is unique based on version latest/current
-  - The filter "version_latest_ind = 1" is used for domain tables, whereas "version_current_ind = 1" is used for transaction tables.
-  - Because this only contains latest records, the end dates have been supressed; they are always null.
-
-NOTES:
-
-  Content views are provided as a way of exposing the current state records
-  of Version tables.  This makes it possible to query the dbo schema consistently
-  without special logic being applied by the analyst.
-
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-28  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################
-*/
-
-CREATE VIEW dbo.[legal_entity_holiday] AS
-SELECT 
-
-  -- KEY COLUMNS
-  vx.legal_entity_holiday_key
+CREATE TABLE dbo.[recovery] (
+  -- NAMED KEY COLUMN
+  recovery_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , v.legal_entity_uid
- , v.holiday_date
+, recovery_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
+  -- ENTITY REFERENCE COLUMNS
+, claim_feature_uid VARCHAR(200)
 
   -- ATTRIBUTE COLUMNS
- , v.holiday_name
+, financial_date DATE
+, recovery_amount DECIMAL(20,12)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, v.source_uid
-, v.source_rev_dtm
-, v.source_rev_actor
-
-  -- VERSION COLUMNS
-, v.legal_entity_holiday_version_key
-, vx.version_index
-, v.version_dtm
-, vx.version_current_ind
-
-  -- BATCH COLUMNS
-, v.version_batch_key
-
-FROM
-ver.legal_entity_holiday v
-INNER JOIN vex.legal_entity_holiday vx ON
-  vx.legal_entity_holiday_version_key = v.legal_entity_holiday_version_key
-WHERE
-vx.version_latest_ind = 1
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[legal_entity_holiday_settle]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[legal_entity_holiday_settle]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[legal_entity_holiday_settle]
-
-DESCRIPTION: Truncates corresponding VEX table and reloads it using settle logic.
-
-PARAMETERS: None.
-
-OUTPUT PARAMETERS: None.
-
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-
-HISTORY:
-
-Date        Name            Version  Description
----------------------------------------------------------------------------------
-2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[legal_entity_holiday_settle] AS
-BEGIN
-
-SET NOCOUNT ON;
-
-TRUNCATE TABLE vex.[legal_entity_holiday];
-
-INSERT INTO vex.[legal_entity_holiday] (
-  legal_entity_holiday_version_key
-, next_legal_entity_holiday_version_key
-, legal_entity_holiday_key
-, version_index
-, version_current_ind
-, version_latest_ind
-, end_version_dtmx
-, end_version_batch_key
-, end_source_rev_dtmx
-)
-SELECT
-
-  v.legal_entity_holiday_version_key
-
-, LEAD(v.legal_entity_holiday_version_key, 1) OVER (
-    PARTITION BY v.legal_entity_uid, v.holiday_date
-    ORDER BY v.legal_entity_holiday_version_key ASC) AS next_legal_entity_holiday_version_key
-
-, MIN(v.legal_entity_holiday_version_key) OVER (
-    PARTITION BY v.legal_entity_uid, v.holiday_date) AS legal_entity_holiday_key
-
-, ROW_NUMBER() OVER (
-    PARTITION BY v.legal_entity_uid, v.holiday_date
-    ORDER BY v.legal_entity_holiday_version_key ASC) AS version_index
-
-    -- XOR "^" inverts the deleted indicator
-  , CASE
-    WHEN LAST_VALUE(v.legal_entity_holiday_version_key) OVER (
-      PARTITION BY v.legal_entity_uid, v.holiday_date
-      ORDER BY v.legal_entity_holiday_version_key ASC
-      RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.legal_entity_holiday_version_key THEN v.source_delete_ind ^ 1
-    ELSE 0 END AS version_current_ind
-
-, CASE
-  WHEN LAST_VALUE(v.legal_entity_holiday_version_key) OVER (
-    PARTITION BY v.legal_entity_uid, v.holiday_date
-    ORDER BY v.legal_entity_holiday_version_key ASC
-    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.legal_entity_holiday_version_key THEN 1
-  ELSE 0 END AS version_latest_ind
-
-, LEAD(v.version_dtm, 1) OVER (
-    PARTITION BY v.legal_entity_uid, v.holiday_date
-    ORDER BY v.legal_entity_holiday_version_key ASC) AS end_version_dtmx
-
-  -- Back the LEAD batch key off by 1
-, LEAD(v.version_batch_key, 1) OVER (
-    PARTITION BY v.legal_entity_uid, v.holiday_date
-    ORDER BY v.legal_entity_holiday_version_key ASC) - 1 AS end_version_batch_key
-
-, LEAD(v.source_rev_dtm, 1) OVER (
-    PARTITION BY v.legal_entity_uid, v.holiday_date
-    ORDER BY v.legal_entity_holiday_version_key ASC) AS end_source_rev_dtmx
-
-FROM
-ver.legal_entity_holiday v
-
-END;
-GO
-
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[legal_entity_holiday_settle_merge]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[legal_entity_holiday_settle_merge]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[legal_entity_holiday_settle_merge]
-
-DESCRIPTION: Performs a merge of all version records related to grain values that have been affected
-  on or after the specified batch key.
-
-PARAMETERS:
-
-  @begin_version_batch_key INT = The minimum batch key used to determine with grain records should
-    be considered in the settle.
-  
-OUTPUT PARAMETERS: None.
-  
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-  
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[legal_entity_holiday_settle_merge] 
-  @begin_version_batch_key INT
-, @suspend_cleanup_ind BIT = 0  
-AS
-BEGIN
-
-  SET NOCOUNT ON;
-
-  -- cleanup orphaned VEX records
-  IF @suspend_cleanup_ind = 0
-  BEGIN
-
-    DELETE vt FROM
-    vex.legal_entity_holiday vt
-    WHERE
-    NOT EXISTS (
-      SELECT 1 FROM ver.legal_entity_holiday vs
-      WHERE vs.legal_entity_holiday_version_key = vt.legal_entity_holiday_version_key
-    );
-
-  END
-
-
-  MERGE vex.legal_entity_holiday WITH (HOLDLOCK) AS vt
-
-  USING (
-  
-    SELECT
-
-      v.legal_entity_holiday_version_key
-
-    , LEAD(v.legal_entity_holiday_version_key, 1) OVER (
-        PARTITION BY v.legal_entity_uid, v.holiday_date
-        ORDER BY v.legal_entity_holiday_version_key ASC) AS next_legal_entity_holiday_version_key
-
-    , MIN(v.legal_entity_holiday_version_key) OVER (
-        PARTITION BY v.legal_entity_uid, v.holiday_date) AS legal_entity_holiday_key
-
-    , ROW_NUMBER() OVER (
-        PARTITION BY v.legal_entity_uid, v.holiday_date
-        ORDER BY v.legal_entity_holiday_version_key ASC) AS version_index
-
-      -- XOR "^" inverts the deleted indicator
-    , CASE
-      WHEN LAST_VALUE(v.legal_entity_holiday_version_key) OVER (
-        PARTITION BY v.legal_entity_uid, v.holiday_date
-        ORDER BY v.legal_entity_holiday_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.legal_entity_holiday_version_key THEN v.source_delete_ind ^ 1
-      ELSE 0 END AS version_current_ind
-
-    , CASE
-      WHEN LAST_VALUE(v.legal_entity_holiday_version_key) OVER (
-        PARTITION BY v.legal_entity_uid, v.holiday_date
-        ORDER BY v.legal_entity_holiday_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.legal_entity_holiday_version_key THEN 1
-      ELSE 0 END AS version_latest_ind
-
-    , LEAD(v.version_dtm, 1) OVER (
-        PARTITION BY v.legal_entity_uid, v.holiday_date
-        ORDER BY v.legal_entity_holiday_version_key ASC) AS end_version_dtmx
-
-      -- Back the LEAD batch key off by 1
-    , LEAD(v.version_batch_key, 1) OVER (
-        PARTITION BY v.legal_entity_uid, v.holiday_date
-        ORDER BY v.legal_entity_holiday_version_key ASC) - 1 AS end_version_batch_key
-
-    , LEAD(v.source_rev_dtm, 1) OVER (
-        PARTITION BY v.legal_entity_uid, v.holiday_date
-        ORDER BY v.legal_entity_holiday_version_key ASC) AS end_source_rev_dtmx
-
-    FROM
-    ver.legal_entity_holiday v
-    WHERE
-    EXISTS (
-
-	    SELECT 1 FROM ver.legal_entity_holiday vg
-	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
-      vg.legal_entity_uid = v.legal_entity_uid
-      AND vg.holiday_date = v.holiday_date
-
-    )
-
-  ) AS vs
-
-  ON vs.legal_entity_holiday_version_key = vt.legal_entity_holiday_version_key 
-
-  WHEN MATCHED
-    AND COALESCE(vs.next_legal_entity_holiday_version_key, -1) != 
-      COALESCE(vt.next_legal_entity_holiday_version_key, -1) THEN
-
-    UPDATE SET
-      next_legal_entity_holiday_version_key = vs.next_legal_entity_holiday_version_key
-    , legal_entity_holiday_key = vs.legal_entity_holiday_key
-    , version_index = vs.version_index
-    , version_current_ind = vs.version_current_ind
-    , version_latest_ind = vs.version_latest_ind
-    , end_version_dtmx = vs.end_version_dtmx
-    , end_version_batch_key = vs.end_version_batch_key
-    , end_source_rev_dtmx = vs.end_source_rev_dtmx
-
-  WHEN NOT MATCHED BY TARGET THEN
-
-    INSERT (
-      legal_entity_holiday_version_key
-    , next_legal_entity_holiday_version_key
-    , legal_entity_holiday_key
-    , version_index
-    , version_current_ind
-    , version_latest_ind
-    , end_version_dtmx
-    , end_version_batch_key
-    , end_source_rev_dtmx
-    )  VALUES (
-      vs.legal_entity_holiday_version_key
-    , vs.next_legal_entity_holiday_version_key
-    , vs.legal_entity_holiday_key
-    , vs.version_index
-    , vs.version_current_ind
-    , vs.version_latest_ind
-    , vs.end_version_dtmx
-    , vs.end_version_batch_key
-    , vs.end_source_rev_dtmx
-    )
-
-  ;
-
-
-END;
-GO
-
-  
-/*
-##################################################################################################  
-###########  ENTITY OBJECT DEFINITIONS FOR [Sales Order]
-##################################################################################################
-*/
-
-IF OBJECT_ID(N'ver.[sales_order]', N'U') IS NOT NULL
-  DROP TABLE ver.[sales_order]
-;
-
-CREATE TABLE ver.[sales_order] (
-
-  -- VERSION IDENTITY KEY COLUMN
-  sales_order_version_key INT IDENTITY(1000,1)
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_recovery_pk PRIMARY KEY CLUSTERED (recovery_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.recovery_version));
+
+/* ##################################################################################
+TABLE: Salvage
+##################################################################################### */
+
+CREATE TABLE dbo.[salvage] (
+  -- NAMED KEY COLUMN
+  salvage_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , sales_order_uid VARCHAR(200) NOT NULL
+, salvage_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
- , revenue_legal_entity_uid VARCHAR(200)
- , customer_uid VARCHAR(200)
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , sales_order_date DATE
- , sales_order_nbr VARCHAR(100)
- , tax_amt DECIMAL(20,12)
- , freight_amt DECIMAL(20,12)
+, property_desc VARCHAR(1000)
+, salvage_date DATE
+, salvage_amount DECIMAL(20,12)
+, award_date DATE
+, financial_date DATE
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, source_uid VARCHAR(200) NOT NULL
-, source_rev_dtm DATETIME NOT NULL
-, source_rev_actor VARCHAR(200) NULL
-, source_delete_ind BIT NOT NULL
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-  -- VERSION COLUMNS
-, version_dtm DATETIME2
-, version_batch_key INT
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-, CONSTRAINT ver_sales_order_pk
-    PRIMARY KEY NONCLUSTERED (sales_order_version_key)
-);
-GO
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-CREATE CLUSTERED INDEX ver_sales_order_cx ON
-  ver.[sales_order] (sales_order_uid);
-GO
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-IF OBJECT_ID(N'vex.[sales_order]', N'U') IS NOT NULL
-DROP TABLE vex.[sales_order]
-;
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-CREATE TABLE [vex].[sales_order] (
-  
-  -- GENERAL NOTES: Many columns are marked as nullable in order to improve load efficiency. 
-  --   This is safe, assuming that loading is only handled through dedicated procs.
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_salvage_pk PRIMARY KEY CLUSTERED (salvage_uid)
 
-  -- KEY COLUMNS
-  sales_order_version_key INT NOT NULL
-, next_sales_order_version_key INT NULL
-, sales_order_key INT NULL
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.salvage_version));
 
-  -- VERSION ATTRIBUTES
-, version_index INT NULL
-, version_current_ind BIT NULL
-, version_latest_ind BIT NULL
+/* ##################################################################################
+TABLE: Subrogation
+##################################################################################### */
 
-  -- END OF RANGE COLUMNS
-, end_version_dtmx DATETIME2 NULL
-, end_version_batch_key INT NULL
-, end_source_rev_dtmx DATETIME2 NULL
-
-, CONSTRAINT vex_sales_order_pk
-    PRIMARY KEY (sales_order_version_key)
-)
-;
-GO
-
-CREATE UNIQUE INDEX vex_sales_order_u1 ON
-  vex.[sales_order] (sales_order_key)
-  WHERE version_latest_ind = 1;
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'dbo.[sales_order]', N'V') IS NOT NULL
-DROP VIEW dbo.[sales_order]
-;
-GO
-/* ################################################################################
-
-OBJECT: VIEW dbo.[sales_order]
-
-DESCRIPTION: Exposes the current view of the version sales_order table,
-  either latest or current version records.
-  
-RETURN DATASET:
-
-  - Columns are identical to the corresponding version table.
-  - The version key is retained for reference purposes.
-  - Assumes that grain column in the version table is unique based on version latest/current
-  - The filter "version_latest_ind = 1" is used for domain tables, whereas "version_current_ind = 1" is used for transaction tables.
-  - Because this only contains latest records, the end dates have been supressed; they are always null.
-
-NOTES:
-
-  Content views are provided as a way of exposing the current state records
-  of Version tables.  This makes it possible to query the dbo schema consistently
-  without special logic being applied by the analyst.
-
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-28  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################
-*/
-
-CREATE VIEW dbo.[sales_order] AS
-SELECT 
-
-  -- KEY COLUMNS
-  vx.sales_order_key
+CREATE TABLE dbo.[subrogation] (
+  -- NAMED KEY COLUMN
+  subrogation_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , v.sales_order_uid
+, subrogation_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
- , v.revenue_legal_entity_uid
- , v.customer_uid
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , v.sales_order_date
- , v.sales_order_nbr
- , v.tax_amt
- , v.freight_amt
+, subrogated_party_desc VARCHAR(1000)
+, award_date DATE
+, financial_date DATE
+, subrogation_amount DECIMAL(20,12)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, v.source_uid
-, v.source_rev_dtm
-, v.source_rev_actor
-
-  -- VERSION COLUMNS
-, v.sales_order_version_key
-, vx.version_index
-, v.version_dtm
-, vx.version_current_ind
-
-  -- BATCH COLUMNS
-, v.version_batch_key
-
-FROM
-ver.sales_order v
-INNER JOIN vex.sales_order vx ON
-  vx.sales_order_version_key = v.sales_order_version_key
-WHERE
-vx.version_latest_ind = 1
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[sales_order_settle]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[sales_order_settle]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[sales_order_settle]
-
-DESCRIPTION: Truncates corresponding VEX table and reloads it using settle logic.
-
-PARAMETERS: None.
-
-OUTPUT PARAMETERS: None.
-
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-
-HISTORY:
-
-Date        Name            Version  Description
----------------------------------------------------------------------------------
-2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[sales_order_settle] AS
-BEGIN
-
-SET NOCOUNT ON;
-
-TRUNCATE TABLE vex.[sales_order];
-
-INSERT INTO vex.[sales_order] (
-  sales_order_version_key
-, next_sales_order_version_key
-, sales_order_key
-, version_index
-, version_current_ind
-, version_latest_ind
-, end_version_dtmx
-, end_version_batch_key
-, end_source_rev_dtmx
-)
-SELECT
-
-  v.sales_order_version_key
-
-, LEAD(v.sales_order_version_key, 1) OVER (
-    PARTITION BY v.sales_order_uid
-    ORDER BY v.sales_order_version_key ASC) AS next_sales_order_version_key
-
-, MIN(v.sales_order_version_key) OVER (
-    PARTITION BY v.sales_order_uid) AS sales_order_key
-
-, ROW_NUMBER() OVER (
-    PARTITION BY v.sales_order_uid
-    ORDER BY v.sales_order_version_key ASC) AS version_index
-
-    -- XOR "^" inverts the deleted indicator
-  , CASE
-    WHEN LAST_VALUE(v.sales_order_version_key) OVER (
-      PARTITION BY v.sales_order_uid
-      ORDER BY v.sales_order_version_key ASC
-      RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_version_key THEN v.source_delete_ind ^ 1
-    ELSE 0 END AS version_current_ind
-
-, CASE
-  WHEN LAST_VALUE(v.sales_order_version_key) OVER (
-    PARTITION BY v.sales_order_uid
-    ORDER BY v.sales_order_version_key ASC
-    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_version_key THEN 1
-  ELSE 0 END AS version_latest_ind
-
-, LEAD(v.version_dtm, 1) OVER (
-    PARTITION BY v.sales_order_uid
-    ORDER BY v.sales_order_version_key ASC) AS end_version_dtmx
-
-  -- Back the LEAD batch key off by 1
-, LEAD(v.version_batch_key, 1) OVER (
-    PARTITION BY v.sales_order_uid
-    ORDER BY v.sales_order_version_key ASC) - 1 AS end_version_batch_key
-
-, LEAD(v.source_rev_dtm, 1) OVER (
-    PARTITION BY v.sales_order_uid
-    ORDER BY v.sales_order_version_key ASC) AS end_source_rev_dtmx
-
-FROM
-ver.sales_order v
-
-END;
-GO
-
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[sales_order_settle_merge]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[sales_order_settle_merge]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[sales_order_settle_merge]
-
-DESCRIPTION: Performs a merge of all version records related to grain values that have been affected
-  on or after the specified batch key.
-
-PARAMETERS:
-
-  @begin_version_batch_key INT = The minimum batch key used to determine with grain records should
-    be considered in the settle.
-  
-OUTPUT PARAMETERS: None.
-  
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-  
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[sales_order_settle_merge] 
-  @begin_version_batch_key INT
-, @suspend_cleanup_ind BIT = 0  
-AS
-BEGIN
-
-  SET NOCOUNT ON;
-
-  -- cleanup orphaned VEX records
-  IF @suspend_cleanup_ind = 0
-  BEGIN
-
-    DELETE vt FROM
-    vex.sales_order vt
-    WHERE
-    NOT EXISTS (
-      SELECT 1 FROM ver.sales_order vs
-      WHERE vs.sales_order_version_key = vt.sales_order_version_key
-    );
-
-  END
-
-
-  MERGE vex.sales_order WITH (HOLDLOCK) AS vt
-
-  USING (
-  
-    SELECT
-
-      v.sales_order_version_key
-
-    , LEAD(v.sales_order_version_key, 1) OVER (
-        PARTITION BY v.sales_order_uid
-        ORDER BY v.sales_order_version_key ASC) AS next_sales_order_version_key
-
-    , MIN(v.sales_order_version_key) OVER (
-        PARTITION BY v.sales_order_uid) AS sales_order_key
-
-    , ROW_NUMBER() OVER (
-        PARTITION BY v.sales_order_uid
-        ORDER BY v.sales_order_version_key ASC) AS version_index
-
-      -- XOR "^" inverts the deleted indicator
-    , CASE
-      WHEN LAST_VALUE(v.sales_order_version_key) OVER (
-        PARTITION BY v.sales_order_uid
-        ORDER BY v.sales_order_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_version_key THEN v.source_delete_ind ^ 1
-      ELSE 0 END AS version_current_ind
-
-    , CASE
-      WHEN LAST_VALUE(v.sales_order_version_key) OVER (
-        PARTITION BY v.sales_order_uid
-        ORDER BY v.sales_order_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_version_key THEN 1
-      ELSE 0 END AS version_latest_ind
-
-    , LEAD(v.version_dtm, 1) OVER (
-        PARTITION BY v.sales_order_uid
-        ORDER BY v.sales_order_version_key ASC) AS end_version_dtmx
-
-      -- Back the LEAD batch key off by 1
-    , LEAD(v.version_batch_key, 1) OVER (
-        PARTITION BY v.sales_order_uid
-        ORDER BY v.sales_order_version_key ASC) - 1 AS end_version_batch_key
-
-    , LEAD(v.source_rev_dtm, 1) OVER (
-        PARTITION BY v.sales_order_uid
-        ORDER BY v.sales_order_version_key ASC) AS end_source_rev_dtmx
-
-    FROM
-    ver.sales_order v
-    WHERE
-    EXISTS (
-
-	    SELECT 1 FROM ver.sales_order vg
-	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
-      vg.sales_order_uid = v.sales_order_uid
-
-    )
-
-  ) AS vs
-
-  ON vs.sales_order_version_key = vt.sales_order_version_key 
-
-  WHEN MATCHED
-    AND COALESCE(vs.next_sales_order_version_key, -1) != 
-      COALESCE(vt.next_sales_order_version_key, -1) THEN
-
-    UPDATE SET
-      next_sales_order_version_key = vs.next_sales_order_version_key
-    , sales_order_key = vs.sales_order_key
-    , version_index = vs.version_index
-    , version_current_ind = vs.version_current_ind
-    , version_latest_ind = vs.version_latest_ind
-    , end_version_dtmx = vs.end_version_dtmx
-    , end_version_batch_key = vs.end_version_batch_key
-    , end_source_rev_dtmx = vs.end_source_rev_dtmx
-
-  WHEN NOT MATCHED BY TARGET THEN
-
-    INSERT (
-      sales_order_version_key
-    , next_sales_order_version_key
-    , sales_order_key
-    , version_index
-    , version_current_ind
-    , version_latest_ind
-    , end_version_dtmx
-    , end_version_batch_key
-    , end_source_rev_dtmx
-    )  VALUES (
-      vs.sales_order_version_key
-    , vs.next_sales_order_version_key
-    , vs.sales_order_key
-    , vs.version_index
-    , vs.version_current_ind
-    , vs.version_latest_ind
-    , vs.end_version_dtmx
-    , vs.end_version_batch_key
-    , vs.end_source_rev_dtmx
-    )
-
-  ;
-
-
-END;
-GO
-
-  
-/*
-##################################################################################################  
-###########  ENTITY OBJECT DEFINITIONS FOR [Sales Order Line]
-##################################################################################################
-*/
-
-IF OBJECT_ID(N'ver.[sales_order_line]', N'U') IS NOT NULL
-  DROP TABLE ver.[sales_order_line]
-;
-
-CREATE TABLE ver.[sales_order_line] (
-
-  -- VERSION IDENTITY KEY COLUMN
-  sales_order_line_version_key INT IDENTITY(1000,1)
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_subrogation_pk PRIMARY KEY CLUSTERED (subrogation_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.subrogation_version));
+
+/* ##################################################################################
+TABLE: Vendor
+##################################################################################### */
+
+CREATE TABLE dbo.[vendor] (
+  -- NAMED KEY COLUMN
+  vendor_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , sales_order_lineuid VARCHAR(200) NOT NULL
+, vendor_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
- , sales_order_uid VARCHAR(200)
- , item_uid VARCHAR(200)
- , current_sales_order_line_status_uid VARCHAR(200)
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , sales_order_line_desc VARCHAR(200)
- , sales_order_line_index INT
- , item_unit_qty DECIMAL(20,12)
- , sale_amt DECIMAL(20,12)
- , standard_cost_amt DECIMAL(20,12)
+, vendor_number VARCHAR(200)
+, vendor_name VARCHAR(200)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, source_uid VARCHAR(200) NOT NULL
-, source_rev_dtm DATETIME NOT NULL
-, source_rev_actor VARCHAR(200) NULL
-, source_delete_ind BIT NOT NULL
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-  -- VERSION COLUMNS
-, version_dtm DATETIME2
-, version_batch_key INT
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-, CONSTRAINT ver_sales_order_line_pk
-    PRIMARY KEY NONCLUSTERED (sales_order_line_version_key)
-);
-GO
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-CREATE CLUSTERED INDEX ver_sales_order_line_cx ON
-  ver.[sales_order_line] (sales_order_lineuid);
-GO
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-IF OBJECT_ID(N'vex.[sales_order_line]', N'U') IS NOT NULL
-DROP TABLE vex.[sales_order_line]
-;
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-CREATE TABLE [vex].[sales_order_line] (
-  
-  -- GENERAL NOTES: Many columns are marked as nullable in order to improve load efficiency. 
-  --   This is safe, assuming that loading is only handled through dedicated procs.
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_vendor_pk PRIMARY KEY CLUSTERED (vendor_uid)
 
-  -- KEY COLUMNS
-  sales_order_line_version_key INT NOT NULL
-, next_sales_order_line_version_key INT NULL
-, sales_order_line_key INT NULL
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.vendor_version));
 
-  -- VERSION ATTRIBUTES
-, version_index INT NULL
-, version_current_ind BIT NULL
-, version_latest_ind BIT NULL
+/* ##################################################################################
+TABLE: Vendor Type
+##################################################################################### */
 
-  -- END OF RANGE COLUMNS
-, end_version_dtmx DATETIME2 NULL
-, end_version_batch_key INT NULL
-, end_source_rev_dtmx DATETIME2 NULL
-
-, CONSTRAINT vex_sales_order_line_pk
-    PRIMARY KEY (sales_order_line_version_key)
-)
-;
-GO
-
-CREATE UNIQUE INDEX vex_sales_order_line_u1 ON
-  vex.[sales_order_line] (sales_order_line_key)
-  WHERE version_latest_ind = 1;
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'dbo.[sales_order_line]', N'V') IS NOT NULL
-DROP VIEW dbo.[sales_order_line]
-;
-GO
-/* ################################################################################
-
-OBJECT: VIEW dbo.[sales_order_line]
-
-DESCRIPTION: Exposes the current view of the version sales_order_line table,
-  either latest or current version records.
-  
-RETURN DATASET:
-
-  - Columns are identical to the corresponding version table.
-  - The version key is retained for reference purposes.
-  - Assumes that grain column in the version table is unique based on version latest/current
-  - The filter "version_latest_ind = 1" is used for domain tables, whereas "version_current_ind = 1" is used for transaction tables.
-  - Because this only contains latest records, the end dates have been supressed; they are always null.
-
-NOTES:
-
-  Content views are provided as a way of exposing the current state records
-  of Version tables.  This makes it possible to query the dbo schema consistently
-  without special logic being applied by the analyst.
-
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-28  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################
-*/
-
-CREATE VIEW dbo.[sales_order_line] AS
-SELECT 
-
-  -- KEY COLUMNS
-  vx.sales_order_line_key
+CREATE TABLE dbo.[vendor_type] (
+  -- NAMED KEY COLUMN
+  vendor_type_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , v.sales_order_lineuid
+, vendor_type_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
- , v.sales_order_uid
- , v.item_uid
- , v.current_sales_order_line_status_uid
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , v.sales_order_line_desc
- , v.sales_order_line_index
- , v.item_unit_qty
- , v.sale_amt
- , v.standard_cost_amt
+, vendor_type_code VARCHAR(20)
+, vendor_type_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, v.source_uid
-, v.source_rev_dtm
-, v.source_rev_actor
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-  -- VERSION COLUMNS
-, v.sales_order_line_version_key
-, vx.version_index
-, v.version_dtm
-, vx.version_current_ind
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-  -- BATCH COLUMNS
-, v.version_batch_key
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-FROM
-ver.sales_order_line v
-INNER JOIN vex.sales_order_line vx ON
-  vx.sales_order_line_version_key = v.sales_order_line_version_key
-WHERE
-vx.version_latest_ind = 1
-GO
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-IF OBJECT_ID(N'vex.[sales_order_line_settle]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[sales_order_line_settle]
-;
-GO
-/* ################################################################################
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_vendor_type_pk PRIMARY KEY CLUSTERED (vendor_type_uid)
 
-OBJECT: vex.[sales_order_line_settle]
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.vendor_type_version));
 
-DESCRIPTION: Truncates corresponding VEX table and reloads it using settle logic.
+/* ##################################################################################
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-PARAMETERS: None.
+SUBJECT AREA: Billing (27 Tables)
 
-OUTPUT PARAMETERS: None.
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+##################################################################################### */
 
-RETURN VALUE: None.
 
-RETURN DATASET: None.
+/* ##################################################################################
+TABLE: Bill Policy
+##################################################################################### */
 
-HISTORY:
-
-Date        Name            Version  Description
----------------------------------------------------------------------------------
-2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[sales_order_line_settle] AS
-BEGIN
-
-SET NOCOUNT ON;
-
-TRUNCATE TABLE vex.[sales_order_line];
-
-INSERT INTO vex.[sales_order_line] (
-  sales_order_line_version_key
-, next_sales_order_line_version_key
-, sales_order_line_key
-, version_index
-, version_current_ind
-, version_latest_ind
-, end_version_dtmx
-, end_version_batch_key
-, end_source_rev_dtmx
-)
-SELECT
-
-  v.sales_order_line_version_key
-
-, LEAD(v.sales_order_line_version_key, 1) OVER (
-    PARTITION BY v.sales_order_lineuid
-    ORDER BY v.sales_order_line_version_key ASC) AS next_sales_order_line_version_key
-
-, MIN(v.sales_order_line_version_key) OVER (
-    PARTITION BY v.sales_order_lineuid) AS sales_order_line_key
-
-, ROW_NUMBER() OVER (
-    PARTITION BY v.sales_order_lineuid
-    ORDER BY v.sales_order_line_version_key ASC) AS version_index
-
-    -- XOR "^" inverts the deleted indicator
-  , CASE
-    WHEN LAST_VALUE(v.sales_order_line_version_key) OVER (
-      PARTITION BY v.sales_order_lineuid
-      ORDER BY v.sales_order_line_version_key ASC
-      RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_line_version_key THEN v.source_delete_ind ^ 1
-    ELSE 0 END AS version_current_ind
-
-, CASE
-  WHEN LAST_VALUE(v.sales_order_line_version_key) OVER (
-    PARTITION BY v.sales_order_lineuid
-    ORDER BY v.sales_order_line_version_key ASC
-    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_line_version_key THEN 1
-  ELSE 0 END AS version_latest_ind
-
-, LEAD(v.version_dtm, 1) OVER (
-    PARTITION BY v.sales_order_lineuid
-    ORDER BY v.sales_order_line_version_key ASC) AS end_version_dtmx
-
-  -- Back the LEAD batch key off by 1
-, LEAD(v.version_batch_key, 1) OVER (
-    PARTITION BY v.sales_order_lineuid
-    ORDER BY v.sales_order_line_version_key ASC) - 1 AS end_version_batch_key
-
-, LEAD(v.source_rev_dtm, 1) OVER (
-    PARTITION BY v.sales_order_lineuid
-    ORDER BY v.sales_order_line_version_key ASC) AS end_source_rev_dtmx
-
-FROM
-ver.sales_order_line v
-
-END;
-GO
-
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[sales_order_line_settle_merge]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[sales_order_line_settle_merge]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[sales_order_line_settle_merge]
-
-DESCRIPTION: Performs a merge of all version records related to grain values that have been affected
-  on or after the specified batch key.
-
-PARAMETERS:
-
-  @begin_version_batch_key INT = The minimum batch key used to determine with grain records should
-    be considered in the settle.
-  
-OUTPUT PARAMETERS: None.
-  
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-  
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[sales_order_line_settle_merge] 
-  @begin_version_batch_key INT
-, @suspend_cleanup_ind BIT = 0  
-AS
-BEGIN
-
-  SET NOCOUNT ON;
-
-  -- cleanup orphaned VEX records
-  IF @suspend_cleanup_ind = 0
-  BEGIN
-
-    DELETE vt FROM
-    vex.sales_order_line vt
-    WHERE
-    NOT EXISTS (
-      SELECT 1 FROM ver.sales_order_line vs
-      WHERE vs.sales_order_line_version_key = vt.sales_order_line_version_key
-    );
-
-  END
-
-
-  MERGE vex.sales_order_line WITH (HOLDLOCK) AS vt
-
-  USING (
-  
-    SELECT
-
-      v.sales_order_line_version_key
-
-    , LEAD(v.sales_order_line_version_key, 1) OVER (
-        PARTITION BY v.sales_order_lineuid
-        ORDER BY v.sales_order_line_version_key ASC) AS next_sales_order_line_version_key
-
-    , MIN(v.sales_order_line_version_key) OVER (
-        PARTITION BY v.sales_order_lineuid) AS sales_order_line_key
-
-    , ROW_NUMBER() OVER (
-        PARTITION BY v.sales_order_lineuid
-        ORDER BY v.sales_order_line_version_key ASC) AS version_index
-
-      -- XOR "^" inverts the deleted indicator
-    , CASE
-      WHEN LAST_VALUE(v.sales_order_line_version_key) OVER (
-        PARTITION BY v.sales_order_lineuid
-        ORDER BY v.sales_order_line_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_line_version_key THEN v.source_delete_ind ^ 1
-      ELSE 0 END AS version_current_ind
-
-    , CASE
-      WHEN LAST_VALUE(v.sales_order_line_version_key) OVER (
-        PARTITION BY v.sales_order_lineuid
-        ORDER BY v.sales_order_line_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_line_version_key THEN 1
-      ELSE 0 END AS version_latest_ind
-
-    , LEAD(v.version_dtm, 1) OVER (
-        PARTITION BY v.sales_order_lineuid
-        ORDER BY v.sales_order_line_version_key ASC) AS end_version_dtmx
-
-      -- Back the LEAD batch key off by 1
-    , LEAD(v.version_batch_key, 1) OVER (
-        PARTITION BY v.sales_order_lineuid
-        ORDER BY v.sales_order_line_version_key ASC) - 1 AS end_version_batch_key
-
-    , LEAD(v.source_rev_dtm, 1) OVER (
-        PARTITION BY v.sales_order_lineuid
-        ORDER BY v.sales_order_line_version_key ASC) AS end_source_rev_dtmx
-
-    FROM
-    ver.sales_order_line v
-    WHERE
-    EXISTS (
-
-	    SELECT 1 FROM ver.sales_order_line vg
-	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
-      vg.sales_order_lineuid = v.sales_order_lineuid
-
-    )
-
-  ) AS vs
-
-  ON vs.sales_order_line_version_key = vt.sales_order_line_version_key 
-
-  WHEN MATCHED
-    AND COALESCE(vs.next_sales_order_line_version_key, -1) != 
-      COALESCE(vt.next_sales_order_line_version_key, -1) THEN
-
-    UPDATE SET
-      next_sales_order_line_version_key = vs.next_sales_order_line_version_key
-    , sales_order_line_key = vs.sales_order_line_key
-    , version_index = vs.version_index
-    , version_current_ind = vs.version_current_ind
-    , version_latest_ind = vs.version_latest_ind
-    , end_version_dtmx = vs.end_version_dtmx
-    , end_version_batch_key = vs.end_version_batch_key
-    , end_source_rev_dtmx = vs.end_source_rev_dtmx
-
-  WHEN NOT MATCHED BY TARGET THEN
-
-    INSERT (
-      sales_order_line_version_key
-    , next_sales_order_line_version_key
-    , sales_order_line_key
-    , version_index
-    , version_current_ind
-    , version_latest_ind
-    , end_version_dtmx
-    , end_version_batch_key
-    , end_source_rev_dtmx
-    )  VALUES (
-      vs.sales_order_line_version_key
-    , vs.next_sales_order_line_version_key
-    , vs.sales_order_line_key
-    , vs.version_index
-    , vs.version_current_ind
-    , vs.version_latest_ind
-    , vs.end_version_dtmx
-    , vs.end_version_batch_key
-    , vs.end_source_rev_dtmx
-    )
-
-  ;
-
-
-END;
-GO
-
-  
-/*
-##################################################################################################  
-###########  ENTITY OBJECT DEFINITIONS FOR [Sales Order Line Status]
-##################################################################################################
-*/
-
-IF OBJECT_ID(N'ver.[sales_order_line_status]', N'U') IS NOT NULL
-  DROP TABLE ver.[sales_order_line_status]
-;
-
-CREATE TABLE ver.[sales_order_line_status] (
-
-  -- VERSION IDENTITY KEY COLUMN
-  sales_order_line_status_version_key INT IDENTITY(1000,1)
+CREATE TABLE dbo.[bill_policy] (
+  -- NAMED KEY COLUMN
+  bill_policy_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , sales_order_line_status_uid VARCHAR(200) NOT NULL
+, bill_policy_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , sales_order_line_status_desc VARCHAR(200) NOT NULL
- , sales_order_line_status_code VARCHAR(20)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, source_uid VARCHAR(200) NOT NULL
-, source_rev_dtm DATETIME NOT NULL
-, source_rev_actor VARCHAR(200) NULL
-, source_delete_ind BIT NOT NULL
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-  -- VERSION COLUMNS
-, version_dtm DATETIME2
-, version_batch_key INT
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-, CONSTRAINT ver_sales_order_line_status_pk
-    PRIMARY KEY NONCLUSTERED (sales_order_line_status_version_key)
-);
-GO
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-CREATE CLUSTERED INDEX ver_sales_order_line_status_cx ON
-  ver.[sales_order_line_status] (sales_order_line_status_uid);
-GO
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-IF OBJECT_ID(N'vex.[sales_order_line_status]', N'U') IS NOT NULL
-DROP TABLE vex.[sales_order_line_status]
-;
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-CREATE TABLE [vex].[sales_order_line_status] (
-  
-  -- GENERAL NOTES: Many columns are marked as nullable in order to improve load efficiency. 
-  --   This is safe, assuming that loading is only handled through dedicated procs.
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_policy_pk PRIMARY KEY CLUSTERED (bill_policy_uid)
 
-  -- KEY COLUMNS
-  sales_order_line_status_version_key INT NOT NULL
-, next_sales_order_line_status_version_key INT NULL
-, sales_order_line_status_key INT NULL
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_policy_version));
 
-  -- VERSION ATTRIBUTES
-, version_index INT NULL
-, version_current_ind BIT NULL
-, version_latest_ind BIT NULL
+/* ##################################################################################
+TABLE: Bill Party
+##################################################################################### */
 
-  -- END OF RANGE COLUMNS
-, end_version_dtmx DATETIME2 NULL
-, end_version_batch_key INT NULL
-, end_source_rev_dtmx DATETIME2 NULL
-
-, CONSTRAINT vex_sales_order_line_status_pk
-    PRIMARY KEY (sales_order_line_status_version_key)
-)
-;
-GO
-
-CREATE UNIQUE INDEX vex_sales_order_line_status_u1 ON
-  vex.[sales_order_line_status] (sales_order_line_status_key)
-  WHERE version_latest_ind = 1;
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'dbo.[sales_order_line_status]', N'V') IS NOT NULL
-DROP VIEW dbo.[sales_order_line_status]
-;
-GO
-/* ################################################################################
-
-OBJECT: VIEW dbo.[sales_order_line_status]
-
-DESCRIPTION: Exposes the current view of the version sales_order_line_status table,
-  either latest or current version records.
-  
-RETURN DATASET:
-
-  - Columns are identical to the corresponding version table.
-  - The version key is retained for reference purposes.
-  - Assumes that grain column in the version table is unique based on version latest/current
-  - The filter "version_latest_ind = 1" is used for domain tables, whereas "version_current_ind = 1" is used for transaction tables.
-  - Because this only contains latest records, the end dates have been supressed; they are always null.
-
-NOTES:
-
-  Content views are provided as a way of exposing the current state records
-  of Version tables.  This makes it possible to query the dbo schema consistently
-  without special logic being applied by the analyst.
-
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-28  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################
-*/
-
-CREATE VIEW dbo.[sales_order_line_status] AS
-SELECT 
-
-  -- KEY COLUMNS
-  vx.sales_order_line_status_key
+CREATE TABLE dbo.[bill_party] (
+  -- NAMED KEY COLUMN
+  bill_party_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , v.sales_order_line_status_uid
+, bill_party_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , v.sales_order_line_status_desc
- , v.sales_order_line_status_code
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, v.source_uid
-, v.source_rev_dtm
-, v.source_rev_actor
-
-  -- VERSION COLUMNS
-, v.sales_order_line_status_version_key
-, vx.version_index
-, v.version_dtm
-, vx.version_current_ind
-
-  -- BATCH COLUMNS
-, v.version_batch_key
-
-FROM
-ver.sales_order_line_status v
-INNER JOIN vex.sales_order_line_status vx ON
-  vx.sales_order_line_status_version_key = v.sales_order_line_status_version_key
-WHERE
-vx.version_latest_ind = 1
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[sales_order_line_status_settle]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[sales_order_line_status_settle]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[sales_order_line_status_settle]
-
-DESCRIPTION: Truncates corresponding VEX table and reloads it using settle logic.
-
-PARAMETERS: None.
-
-OUTPUT PARAMETERS: None.
-
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-
-HISTORY:
-
-Date        Name            Version  Description
----------------------------------------------------------------------------------
-2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[sales_order_line_status_settle] AS
-BEGIN
-
-SET NOCOUNT ON;
-
-TRUNCATE TABLE vex.[sales_order_line_status];
-
-INSERT INTO vex.[sales_order_line_status] (
-  sales_order_line_status_version_key
-, next_sales_order_line_status_version_key
-, sales_order_line_status_key
-, version_index
-, version_current_ind
-, version_latest_ind
-, end_version_dtmx
-, end_version_batch_key
-, end_source_rev_dtmx
-)
-SELECT
-
-  v.sales_order_line_status_version_key
-
-, LEAD(v.sales_order_line_status_version_key, 1) OVER (
-    PARTITION BY v.sales_order_line_status_uid
-    ORDER BY v.sales_order_line_status_version_key ASC) AS next_sales_order_line_status_version_key
-
-, MIN(v.sales_order_line_status_version_key) OVER (
-    PARTITION BY v.sales_order_line_status_uid) AS sales_order_line_status_key
-
-, ROW_NUMBER() OVER (
-    PARTITION BY v.sales_order_line_status_uid
-    ORDER BY v.sales_order_line_status_version_key ASC) AS version_index
-
-    -- XOR "^" inverts the deleted indicator
-  , CASE
-    WHEN LAST_VALUE(v.sales_order_line_status_version_key) OVER (
-      PARTITION BY v.sales_order_line_status_uid
-      ORDER BY v.sales_order_line_status_version_key ASC
-      RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_line_status_version_key THEN v.source_delete_ind ^ 1
-    ELSE 0 END AS version_current_ind
-
-, CASE
-  WHEN LAST_VALUE(v.sales_order_line_status_version_key) OVER (
-    PARTITION BY v.sales_order_line_status_uid
-    ORDER BY v.sales_order_line_status_version_key ASC
-    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_line_status_version_key THEN 1
-  ELSE 0 END AS version_latest_ind
-
-, LEAD(v.version_dtm, 1) OVER (
-    PARTITION BY v.sales_order_line_status_uid
-    ORDER BY v.sales_order_line_status_version_key ASC) AS end_version_dtmx
-
-  -- Back the LEAD batch key off by 1
-, LEAD(v.version_batch_key, 1) OVER (
-    PARTITION BY v.sales_order_line_status_uid
-    ORDER BY v.sales_order_line_status_version_key ASC) - 1 AS end_version_batch_key
-
-, LEAD(v.source_rev_dtm, 1) OVER (
-    PARTITION BY v.sales_order_line_status_uid
-    ORDER BY v.sales_order_line_status_version_key ASC) AS end_source_rev_dtmx
-
-FROM
-ver.sales_order_line_status v
-
-END;
-GO
-
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[sales_order_line_status_settle_merge]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[sales_order_line_status_settle_merge]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[sales_order_line_status_settle_merge]
-
-DESCRIPTION: Performs a merge of all version records related to grain values that have been affected
-  on or after the specified batch key.
-
-PARAMETERS:
-
-  @begin_version_batch_key INT = The minimum batch key used to determine with grain records should
-    be considered in the settle.
-  
-OUTPUT PARAMETERS: None.
-  
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-  
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[sales_order_line_status_settle_merge] 
-  @begin_version_batch_key INT
-, @suspend_cleanup_ind BIT = 0  
-AS
-BEGIN
-
-  SET NOCOUNT ON;
-
-  -- cleanup orphaned VEX records
-  IF @suspend_cleanup_ind = 0
-  BEGIN
-
-    DELETE vt FROM
-    vex.sales_order_line_status vt
-    WHERE
-    NOT EXISTS (
-      SELECT 1 FROM ver.sales_order_line_status vs
-      WHERE vs.sales_order_line_status_version_key = vt.sales_order_line_status_version_key
-    );
-
-  END
-
-
-  MERGE vex.sales_order_line_status WITH (HOLDLOCK) AS vt
-
-  USING (
-  
-    SELECT
-
-      v.sales_order_line_status_version_key
-
-    , LEAD(v.sales_order_line_status_version_key, 1) OVER (
-        PARTITION BY v.sales_order_line_status_uid
-        ORDER BY v.sales_order_line_status_version_key ASC) AS next_sales_order_line_status_version_key
-
-    , MIN(v.sales_order_line_status_version_key) OVER (
-        PARTITION BY v.sales_order_line_status_uid) AS sales_order_line_status_key
-
-    , ROW_NUMBER() OVER (
-        PARTITION BY v.sales_order_line_status_uid
-        ORDER BY v.sales_order_line_status_version_key ASC) AS version_index
-
-      -- XOR "^" inverts the deleted indicator
-    , CASE
-      WHEN LAST_VALUE(v.sales_order_line_status_version_key) OVER (
-        PARTITION BY v.sales_order_line_status_uid
-        ORDER BY v.sales_order_line_status_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_line_status_version_key THEN v.source_delete_ind ^ 1
-      ELSE 0 END AS version_current_ind
-
-    , CASE
-      WHEN LAST_VALUE(v.sales_order_line_status_version_key) OVER (
-        PARTITION BY v.sales_order_line_status_uid
-        ORDER BY v.sales_order_line_status_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_line_status_version_key THEN 1
-      ELSE 0 END AS version_latest_ind
-
-    , LEAD(v.version_dtm, 1) OVER (
-        PARTITION BY v.sales_order_line_status_uid
-        ORDER BY v.sales_order_line_status_version_key ASC) AS end_version_dtmx
-
-      -- Back the LEAD batch key off by 1
-    , LEAD(v.version_batch_key, 1) OVER (
-        PARTITION BY v.sales_order_line_status_uid
-        ORDER BY v.sales_order_line_status_version_key ASC) - 1 AS end_version_batch_key
-
-    , LEAD(v.source_rev_dtm, 1) OVER (
-        PARTITION BY v.sales_order_line_status_uid
-        ORDER BY v.sales_order_line_status_version_key ASC) AS end_source_rev_dtmx
-
-    FROM
-    ver.sales_order_line_status v
-    WHERE
-    EXISTS (
-
-	    SELECT 1 FROM ver.sales_order_line_status vg
-	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
-      vg.sales_order_line_status_uid = v.sales_order_line_status_uid
-
-    )
-
-  ) AS vs
-
-  ON vs.sales_order_line_status_version_key = vt.sales_order_line_status_version_key 
-
-  WHEN MATCHED
-    AND COALESCE(vs.next_sales_order_line_status_version_key, -1) != 
-      COALESCE(vt.next_sales_order_line_status_version_key, -1) THEN
-
-    UPDATE SET
-      next_sales_order_line_status_version_key = vs.next_sales_order_line_status_version_key
-    , sales_order_line_status_key = vs.sales_order_line_status_key
-    , version_index = vs.version_index
-    , version_current_ind = vs.version_current_ind
-    , version_latest_ind = vs.version_latest_ind
-    , end_version_dtmx = vs.end_version_dtmx
-    , end_version_batch_key = vs.end_version_batch_key
-    , end_source_rev_dtmx = vs.end_source_rev_dtmx
-
-  WHEN NOT MATCHED BY TARGET THEN
-
-    INSERT (
-      sales_order_line_status_version_key
-    , next_sales_order_line_status_version_key
-    , sales_order_line_status_key
-    , version_index
-    , version_current_ind
-    , version_latest_ind
-    , end_version_dtmx
-    , end_version_batch_key
-    , end_source_rev_dtmx
-    )  VALUES (
-      vs.sales_order_line_status_version_key
-    , vs.next_sales_order_line_status_version_key
-    , vs.sales_order_line_status_key
-    , vs.version_index
-    , vs.version_current_ind
-    , vs.version_latest_ind
-    , vs.end_version_dtmx
-    , vs.end_version_batch_key
-    , vs.end_source_rev_dtmx
-    )
-
-  ;
-
-
-END;
-GO
-
-  
-/*
-##################################################################################################  
-###########  ENTITY OBJECT DEFINITIONS FOR [Sales Order Line Status History]
-##################################################################################################
-*/
-
-IF OBJECT_ID(N'ver.[sales_order_line_status_history]', N'U') IS NOT NULL
-  DROP TABLE ver.[sales_order_line_status_history]
-;
-
-CREATE TABLE ver.[sales_order_line_status_history] (
-
-  -- VERSION IDENTITY KEY COLUMN
-  sales_order_line_status_history_version_key INT IDENTITY(1000,1)
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_party_pk PRIMARY KEY CLUSTERED (bill_party_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_party_version));
+
+/* ##################################################################################
+TABLE: Bill Policy Party
+##################################################################################### */
+
+CREATE TABLE dbo.[bill_policy_party] (
+  -- NAMED KEY COLUMN
+  bill_policy_party_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , sales_order_line_uid VARCHAR(200) NOT NULL
- , status_date DATE NOT NULL
+, bill_policy_party_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
- , sales_order_line_status_uid VARCHAR(200)
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , status_comment_desc VARCHAR(200)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, source_uid VARCHAR(200) NOT NULL
-, source_rev_dtm DATETIME NOT NULL
-, source_rev_actor VARCHAR(200) NULL
-, source_delete_ind BIT NOT NULL
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-  -- VERSION COLUMNS
-, version_dtm DATETIME2
-, version_batch_key INT
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-, CONSTRAINT ver_sales_order_line_status_history_pk
-    PRIMARY KEY NONCLUSTERED (sales_order_line_status_history_version_key)
-);
-GO
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-CREATE CLUSTERED INDEX ver_sales_order_line_status_history_cx ON
-  ver.[sales_order_line_status_history] (sales_order_line_uid, status_date);
-GO
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-IF OBJECT_ID(N'vex.[sales_order_line_status_history]', N'U') IS NOT NULL
-DROP TABLE vex.[sales_order_line_status_history]
-;
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-CREATE TABLE [vex].[sales_order_line_status_history] (
-  
-  -- GENERAL NOTES: Many columns are marked as nullable in order to improve load efficiency. 
-  --   This is safe, assuming that loading is only handled through dedicated procs.
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_policy_party_pk PRIMARY KEY CLUSTERED (bill_policy_party_uid)
 
-  -- KEY COLUMNS
-  sales_order_line_status_history_version_key INT NOT NULL
-, next_sales_order_line_status_history_version_key INT NULL
-, sales_order_line_status_history_key INT NULL
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_policy_party_version));
 
-  -- VERSION ATTRIBUTES
-, version_index INT NULL
-, version_current_ind BIT NULL
-, version_latest_ind BIT NULL
+/* ##################################################################################
+TABLE: Party Role
+##################################################################################### */
 
-  -- END OF RANGE COLUMNS
-, end_version_dtmx DATETIME2 NULL
-, end_version_batch_key INT NULL
-, end_source_rev_dtmx DATETIME2 NULL
-
-, CONSTRAINT vex_sales_order_line_status_history_pk
-    PRIMARY KEY (sales_order_line_status_history_version_key)
-)
-;
-GO
-
-CREATE UNIQUE INDEX vex_sales_order_line_status_history_u1 ON
-  vex.[sales_order_line_status_history] (sales_order_line_status_history_key)
-  WHERE version_latest_ind = 1;
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'dbo.[sales_order_line_status_history]', N'V') IS NOT NULL
-DROP VIEW dbo.[sales_order_line_status_history]
-;
-GO
-/* ################################################################################
-
-OBJECT: VIEW dbo.[sales_order_line_status_history]
-
-DESCRIPTION: Exposes the current view of the version sales_order_line_status_history table,
-  either latest or current version records.
-  
-RETURN DATASET:
-
-  - Columns are identical to the corresponding version table.
-  - The version key is retained for reference purposes.
-  - Assumes that grain column in the version table is unique based on version latest/current
-  - The filter "version_latest_ind = 1" is used for domain tables, whereas "version_current_ind = 1" is used for transaction tables.
-  - Because this only contains latest records, the end dates have been supressed; they are always null.
-
-NOTES:
-
-  Content views are provided as a way of exposing the current state records
-  of Version tables.  This makes it possible to query the dbo schema consistently
-  without special logic being applied by the analyst.
-
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-28  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################
-*/
-
-CREATE VIEW dbo.[sales_order_line_status_history] AS
-SELECT 
-
-  -- KEY COLUMNS
-  vx.sales_order_line_status_history_key
+CREATE TABLE dbo.[party_role] (
+  -- NAMED KEY COLUMN
+  party_role_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , v.sales_order_line_uid
- , v.status_date
+, party_role_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
- , v.sales_order_line_status_uid
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , v.status_comment_desc
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, v.source_uid
-, v.source_rev_dtm
-, v.source_rev_actor
-
-  -- VERSION COLUMNS
-, v.sales_order_line_status_history_version_key
-, vx.version_index
-, v.version_dtm
-, vx.version_current_ind
-
-  -- BATCH COLUMNS
-, v.version_batch_key
-
-FROM
-ver.sales_order_line_status_history v
-INNER JOIN vex.sales_order_line_status_history vx ON
-  vx.sales_order_line_status_history_version_key = v.sales_order_line_status_history_version_key
-WHERE
-vx.version_latest_ind = 1
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[sales_order_line_status_history_settle]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[sales_order_line_status_history_settle]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[sales_order_line_status_history_settle]
-
-DESCRIPTION: Truncates corresponding VEX table and reloads it using settle logic.
-
-PARAMETERS: None.
-
-OUTPUT PARAMETERS: None.
-
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-
-HISTORY:
-
-Date        Name            Version  Description
----------------------------------------------------------------------------------
-2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[sales_order_line_status_history_settle] AS
-BEGIN
-
-SET NOCOUNT ON;
-
-TRUNCATE TABLE vex.[sales_order_line_status_history];
-
-INSERT INTO vex.[sales_order_line_status_history] (
-  sales_order_line_status_history_version_key
-, next_sales_order_line_status_history_version_key
-, sales_order_line_status_history_key
-, version_index
-, version_current_ind
-, version_latest_ind
-, end_version_dtmx
-, end_version_batch_key
-, end_source_rev_dtmx
-)
-SELECT
-
-  v.sales_order_line_status_history_version_key
-
-, LEAD(v.sales_order_line_status_history_version_key, 1) OVER (
-    PARTITION BY v.sales_order_line_uid, v.status_date
-    ORDER BY v.sales_order_line_status_history_version_key ASC) AS next_sales_order_line_status_history_version_key
-
-, MIN(v.sales_order_line_status_history_version_key) OVER (
-    PARTITION BY v.sales_order_line_uid, v.status_date) AS sales_order_line_status_history_key
-
-, ROW_NUMBER() OVER (
-    PARTITION BY v.sales_order_line_uid, v.status_date
-    ORDER BY v.sales_order_line_status_history_version_key ASC) AS version_index
-
-    -- XOR "^" inverts the deleted indicator
-  , CASE
-    WHEN LAST_VALUE(v.sales_order_line_status_history_version_key) OVER (
-      PARTITION BY v.sales_order_line_uid, v.status_date
-      ORDER BY v.sales_order_line_status_history_version_key ASC
-      RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_line_status_history_version_key THEN v.source_delete_ind ^ 1
-    ELSE 0 END AS version_current_ind
-
-, CASE
-  WHEN LAST_VALUE(v.sales_order_line_status_history_version_key) OVER (
-    PARTITION BY v.sales_order_line_uid, v.status_date
-    ORDER BY v.sales_order_line_status_history_version_key ASC
-    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_line_status_history_version_key THEN 1
-  ELSE 0 END AS version_latest_ind
-
-, LEAD(v.version_dtm, 1) OVER (
-    PARTITION BY v.sales_order_line_uid, v.status_date
-    ORDER BY v.sales_order_line_status_history_version_key ASC) AS end_version_dtmx
-
-  -- Back the LEAD batch key off by 1
-, LEAD(v.version_batch_key, 1) OVER (
-    PARTITION BY v.sales_order_line_uid, v.status_date
-    ORDER BY v.sales_order_line_status_history_version_key ASC) - 1 AS end_version_batch_key
-
-, LEAD(v.source_rev_dtm, 1) OVER (
-    PARTITION BY v.sales_order_line_uid, v.status_date
-    ORDER BY v.sales_order_line_status_history_version_key ASC) AS end_source_rev_dtmx
-
-FROM
-ver.sales_order_line_status_history v
-
-END;
-GO
-
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[sales_order_line_status_history_settle_merge]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[sales_order_line_status_history_settle_merge]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[sales_order_line_status_history_settle_merge]
-
-DESCRIPTION: Performs a merge of all version records related to grain values that have been affected
-  on or after the specified batch key.
-
-PARAMETERS:
-
-  @begin_version_batch_key INT = The minimum batch key used to determine with grain records should
-    be considered in the settle.
-  
-OUTPUT PARAMETERS: None.
-  
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-  
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[sales_order_line_status_history_settle_merge] 
-  @begin_version_batch_key INT
-, @suspend_cleanup_ind BIT = 0  
-AS
-BEGIN
-
-  SET NOCOUNT ON;
-
-  -- cleanup orphaned VEX records
-  IF @suspend_cleanup_ind = 0
-  BEGIN
-
-    DELETE vt FROM
-    vex.sales_order_line_status_history vt
-    WHERE
-    NOT EXISTS (
-      SELECT 1 FROM ver.sales_order_line_status_history vs
-      WHERE vs.sales_order_line_status_history_version_key = vt.sales_order_line_status_history_version_key
-    );
-
-  END
-
-
-  MERGE vex.sales_order_line_status_history WITH (HOLDLOCK) AS vt
-
-  USING (
-  
-    SELECT
-
-      v.sales_order_line_status_history_version_key
-
-    , LEAD(v.sales_order_line_status_history_version_key, 1) OVER (
-        PARTITION BY v.sales_order_line_uid, v.status_date
-        ORDER BY v.sales_order_line_status_history_version_key ASC) AS next_sales_order_line_status_history_version_key
-
-    , MIN(v.sales_order_line_status_history_version_key) OVER (
-        PARTITION BY v.sales_order_line_uid, v.status_date) AS sales_order_line_status_history_key
-
-    , ROW_NUMBER() OVER (
-        PARTITION BY v.sales_order_line_uid, v.status_date
-        ORDER BY v.sales_order_line_status_history_version_key ASC) AS version_index
-
-      -- XOR "^" inverts the deleted indicator
-    , CASE
-      WHEN LAST_VALUE(v.sales_order_line_status_history_version_key) OVER (
-        PARTITION BY v.sales_order_line_uid, v.status_date
-        ORDER BY v.sales_order_line_status_history_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_line_status_history_version_key THEN v.source_delete_ind ^ 1
-      ELSE 0 END AS version_current_ind
-
-    , CASE
-      WHEN LAST_VALUE(v.sales_order_line_status_history_version_key) OVER (
-        PARTITION BY v.sales_order_line_uid, v.status_date
-        ORDER BY v.sales_order_line_status_history_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.sales_order_line_status_history_version_key THEN 1
-      ELSE 0 END AS version_latest_ind
-
-    , LEAD(v.version_dtm, 1) OVER (
-        PARTITION BY v.sales_order_line_uid, v.status_date
-        ORDER BY v.sales_order_line_status_history_version_key ASC) AS end_version_dtmx
-
-      -- Back the LEAD batch key off by 1
-    , LEAD(v.version_batch_key, 1) OVER (
-        PARTITION BY v.sales_order_line_uid, v.status_date
-        ORDER BY v.sales_order_line_status_history_version_key ASC) - 1 AS end_version_batch_key
-
-    , LEAD(v.source_rev_dtm, 1) OVER (
-        PARTITION BY v.sales_order_line_uid, v.status_date
-        ORDER BY v.sales_order_line_status_history_version_key ASC) AS end_source_rev_dtmx
-
-    FROM
-    ver.sales_order_line_status_history v
-    WHERE
-    EXISTS (
-
-	    SELECT 1 FROM ver.sales_order_line_status_history vg
-	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
-      vg.sales_order_line_uid = v.sales_order_line_uid
-      AND vg.status_date = v.status_date
-
-    )
-
-  ) AS vs
-
-  ON vs.sales_order_line_status_history_version_key = vt.sales_order_line_status_history_version_key 
-
-  WHEN MATCHED
-    AND COALESCE(vs.next_sales_order_line_status_history_version_key, -1) != 
-      COALESCE(vt.next_sales_order_line_status_history_version_key, -1) THEN
-
-    UPDATE SET
-      next_sales_order_line_status_history_version_key = vs.next_sales_order_line_status_history_version_key
-    , sales_order_line_status_history_key = vs.sales_order_line_status_history_key
-    , version_index = vs.version_index
-    , version_current_ind = vs.version_current_ind
-    , version_latest_ind = vs.version_latest_ind
-    , end_version_dtmx = vs.end_version_dtmx
-    , end_version_batch_key = vs.end_version_batch_key
-    , end_source_rev_dtmx = vs.end_source_rev_dtmx
-
-  WHEN NOT MATCHED BY TARGET THEN
-
-    INSERT (
-      sales_order_line_status_history_version_key
-    , next_sales_order_line_status_history_version_key
-    , sales_order_line_status_history_key
-    , version_index
-    , version_current_ind
-    , version_latest_ind
-    , end_version_dtmx
-    , end_version_batch_key
-    , end_source_rev_dtmx
-    )  VALUES (
-      vs.sales_order_line_status_history_version_key
-    , vs.next_sales_order_line_status_history_version_key
-    , vs.sales_order_line_status_history_key
-    , vs.version_index
-    , vs.version_current_ind
-    , vs.version_latest_ind
-    , vs.end_version_dtmx
-    , vs.end_version_batch_key
-    , vs.end_source_rev_dtmx
-    )
-
-  ;
-
-
-END;
-GO
-
-  
-/*
-##################################################################################################  
-###########  ENTITY OBJECT DEFINITIONS FOR [Source]
-##################################################################################################
-*/
-
-IF OBJECT_ID(N'ver.[source]', N'U') IS NOT NULL
-  DROP TABLE ver.[source]
-;
-
-CREATE TABLE ver.[source] (
-
-  -- VERSION IDENTITY KEY COLUMN
-  source_version_key INT IDENTITY(1000,1)
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_party_role_pk PRIMARY KEY CLUSTERED (party_role_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.party_role_version));
+
+/* ##################################################################################
+TABLE: Bill Account
+##################################################################################### */
+
+CREATE TABLE dbo.[bill_account] (
+  -- NAMED KEY COLUMN
+  bill_account_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , source_uid VARCHAR(200) NOT NULL
+, bill_account_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , source_name VARCHAR(200) NOT NULL
- , source_code VARCHAR(20) NOT NULL
- , source_desc VARCHAR(200)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, source_uid VARCHAR(200) NOT NULL
-, source_rev_dtm DATETIME NOT NULL
-, source_rev_actor VARCHAR(200) NULL
-, source_delete_ind BIT NOT NULL
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-  -- VERSION COLUMNS
-, version_dtm DATETIME2
-, version_batch_key INT
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-, CONSTRAINT ver_source_pk
-    PRIMARY KEY NONCLUSTERED (source_version_key)
-);
-GO
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-CREATE CLUSTERED INDEX ver_source_cx ON
-  ver.[source] (source_uid);
-GO
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-IF OBJECT_ID(N'vex.[source]', N'U') IS NOT NULL
-DROP TABLE vex.[source]
-;
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-CREATE TABLE [vex].[source] (
-  
-  -- GENERAL NOTES: Many columns are marked as nullable in order to improve load efficiency. 
-  --   This is safe, assuming that loading is only handled through dedicated procs.
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_account_pk PRIMARY KEY CLUSTERED (bill_account_uid)
 
-  -- KEY COLUMNS
-  source_version_key INT NOT NULL
-, next_source_version_key INT NULL
-, source_key INT NULL
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_account_version));
 
-  -- VERSION ATTRIBUTES
-, version_index INT NULL
-, version_current_ind BIT NULL
-, version_latest_ind BIT NULL
+/* ##################################################################################
+TABLE: Bill Transaction
+##################################################################################### */
 
-  -- END OF RANGE COLUMNS
-, end_version_dtmx DATETIME2 NULL
-, end_version_batch_key INT NULL
-, end_source_rev_dtmx DATETIME2 NULL
-
-, CONSTRAINT vex_source_pk
-    PRIMARY KEY (source_version_key)
-)
-;
-GO
-
-CREATE UNIQUE INDEX vex_source_u1 ON
-  vex.[source] (source_key)
-  WHERE version_latest_ind = 1;
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'dbo.[source]', N'V') IS NOT NULL
-DROP VIEW dbo.[source]
-;
-GO
-/* ################################################################################
-
-OBJECT: VIEW dbo.[source]
-
-DESCRIPTION: Exposes the current view of the version source table,
-  either latest or current version records.
-  
-RETURN DATASET:
-
-  - Columns are identical to the corresponding version table.
-  - The version key is retained for reference purposes.
-  - Assumes that grain column in the version table is unique based on version latest/current
-  - The filter "version_latest_ind = 1" is used for domain tables, whereas "version_current_ind = 1" is used for transaction tables.
-  - Because this only contains latest records, the end dates have been supressed; they are always null.
-
-NOTES:
-
-  Content views are provided as a way of exposing the current state records
-  of Version tables.  This makes it possible to query the dbo schema consistently
-  without special logic being applied by the analyst.
-
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-28  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################
-*/
-
-CREATE VIEW dbo.[source] AS
-SELECT 
-
-  -- KEY COLUMNS
-  vx.source_key
+CREATE TABLE dbo.[bill_tran] (
+  -- NAMED KEY COLUMN
+  bill_tran_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , v.source_uid
+, bill_tran_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , v.source_name
- , v.source_code
- , v.source_desc
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, v.source_uid
-, v.source_rev_dtm
-, v.source_rev_actor
-
-  -- VERSION COLUMNS
-, v.source_version_key
-, vx.version_index
-, v.version_dtm
-, vx.version_current_ind
-
-  -- BATCH COLUMNS
-, v.version_batch_key
-
-FROM
-ver.source v
-INNER JOIN vex.source vx ON
-  vx.source_version_key = v.source_version_key
-WHERE
-vx.version_latest_ind = 1
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[source_settle]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[source_settle]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[source_settle]
-
-DESCRIPTION: Truncates corresponding VEX table and reloads it using settle logic.
-
-PARAMETERS: None.
-
-OUTPUT PARAMETERS: None.
-
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-
-HISTORY:
-
-Date        Name            Version  Description
----------------------------------------------------------------------------------
-2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[source_settle] AS
-BEGIN
-
-SET NOCOUNT ON;
-
-TRUNCATE TABLE vex.[source];
-
-INSERT INTO vex.[source] (
-  source_version_key
-, next_source_version_key
-, source_key
-, version_index
-, version_current_ind
-, version_latest_ind
-, end_version_dtmx
-, end_version_batch_key
-, end_source_rev_dtmx
-)
-SELECT
-
-  v.source_version_key
-
-, LEAD(v.source_version_key, 1) OVER (
-    PARTITION BY v.source_uid
-    ORDER BY v.source_version_key ASC) AS next_source_version_key
-
-, MIN(v.source_version_key) OVER (
-    PARTITION BY v.source_uid) AS source_key
-
-, ROW_NUMBER() OVER (
-    PARTITION BY v.source_uid
-    ORDER BY v.source_version_key ASC) AS version_index
-
-    -- XOR "^" inverts the deleted indicator
-  , CASE
-    WHEN LAST_VALUE(v.source_version_key) OVER (
-      PARTITION BY v.source_uid
-      ORDER BY v.source_version_key ASC
-      RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.source_version_key THEN v.source_delete_ind ^ 1
-    ELSE 0 END AS version_current_ind
-
-, CASE
-  WHEN LAST_VALUE(v.source_version_key) OVER (
-    PARTITION BY v.source_uid
-    ORDER BY v.source_version_key ASC
-    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.source_version_key THEN 1
-  ELSE 0 END AS version_latest_ind
-
-, LEAD(v.version_dtm, 1) OVER (
-    PARTITION BY v.source_uid
-    ORDER BY v.source_version_key ASC) AS end_version_dtmx
-
-  -- Back the LEAD batch key off by 1
-, LEAD(v.version_batch_key, 1) OVER (
-    PARTITION BY v.source_uid
-    ORDER BY v.source_version_key ASC) - 1 AS end_version_batch_key
-
-, LEAD(v.source_rev_dtm, 1) OVER (
-    PARTITION BY v.source_uid
-    ORDER BY v.source_version_key ASC) AS end_source_rev_dtmx
-
-FROM
-ver.source v
-
-END;
-GO
-
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'vex.[source_settle_merge]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[source_settle_merge]
-;
-GO
-/* ################################################################################
-
-OBJECT: vex.[source_settle_merge]
-
-DESCRIPTION: Performs a merge of all version records related to grain values that have been affected
-  on or after the specified batch key.
-
-PARAMETERS:
-
-  @begin_version_batch_key INT = The minimum batch key used to determine with grain records should
-    be considered in the settle.
-  
-OUTPUT PARAMETERS: None.
-  
-RETURN VALUE: None.
-
-RETURN DATASET: None.
-  
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-
-################################################################################ */
-
-CREATE PROCEDURE vex.[source_settle_merge] 
-  @begin_version_batch_key INT
-, @suspend_cleanup_ind BIT = 0  
-AS
-BEGIN
-
-  SET NOCOUNT ON;
-
-  -- cleanup orphaned VEX records
-  IF @suspend_cleanup_ind = 0
-  BEGIN
-
-    DELETE vt FROM
-    vex.source vt
-    WHERE
-    NOT EXISTS (
-      SELECT 1 FROM ver.source vs
-      WHERE vs.source_version_key = vt.source_version_key
-    );
-
-  END
-
-
-  MERGE vex.source WITH (HOLDLOCK) AS vt
-
-  USING (
-  
-    SELECT
-
-      v.source_version_key
-
-    , LEAD(v.source_version_key, 1) OVER (
-        PARTITION BY v.source_uid
-        ORDER BY v.source_version_key ASC) AS next_source_version_key
-
-    , MIN(v.source_version_key) OVER (
-        PARTITION BY v.source_uid) AS source_key
-
-    , ROW_NUMBER() OVER (
-        PARTITION BY v.source_uid
-        ORDER BY v.source_version_key ASC) AS version_index
-
-      -- XOR "^" inverts the deleted indicator
-    , CASE
-      WHEN LAST_VALUE(v.source_version_key) OVER (
-        PARTITION BY v.source_uid
-        ORDER BY v.source_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.source_version_key THEN v.source_delete_ind ^ 1
-      ELSE 0 END AS version_current_ind
-
-    , CASE
-      WHEN LAST_VALUE(v.source_version_key) OVER (
-        PARTITION BY v.source_uid
-        ORDER BY v.source_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.source_version_key THEN 1
-      ELSE 0 END AS version_latest_ind
-
-    , LEAD(v.version_dtm, 1) OVER (
-        PARTITION BY v.source_uid
-        ORDER BY v.source_version_key ASC) AS end_version_dtmx
-
-      -- Back the LEAD batch key off by 1
-    , LEAD(v.version_batch_key, 1) OVER (
-        PARTITION BY v.source_uid
-        ORDER BY v.source_version_key ASC) - 1 AS end_version_batch_key
-
-    , LEAD(v.source_rev_dtm, 1) OVER (
-        PARTITION BY v.source_uid
-        ORDER BY v.source_version_key ASC) AS end_source_rev_dtmx
-
-    FROM
-    ver.source v
-    WHERE
-    EXISTS (
-
-	    SELECT 1 FROM ver.source vg
-	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
-      vg.source_uid = v.source_uid
-
-    )
-
-  ) AS vs
-
-  ON vs.source_version_key = vt.source_version_key 
-
-  WHEN MATCHED
-    AND COALESCE(vs.next_source_version_key, -1) != 
-      COALESCE(vt.next_source_version_key, -1) THEN
-
-    UPDATE SET
-      next_source_version_key = vs.next_source_version_key
-    , source_key = vs.source_key
-    , version_index = vs.version_index
-    , version_current_ind = vs.version_current_ind
-    , version_latest_ind = vs.version_latest_ind
-    , end_version_dtmx = vs.end_version_dtmx
-    , end_version_batch_key = vs.end_version_batch_key
-    , end_source_rev_dtmx = vs.end_source_rev_dtmx
-
-  WHEN NOT MATCHED BY TARGET THEN
-
-    INSERT (
-      source_version_key
-    , next_source_version_key
-    , source_key
-    , version_index
-    , version_current_ind
-    , version_latest_ind
-    , end_version_dtmx
-    , end_version_batch_key
-    , end_source_rev_dtmx
-    )  VALUES (
-      vs.source_version_key
-    , vs.next_source_version_key
-    , vs.source_key
-    , vs.version_index
-    , vs.version_current_ind
-    , vs.version_latest_ind
-    , vs.end_version_dtmx
-    , vs.end_version_batch_key
-    , vs.end_source_rev_dtmx
-    )
-
-  ;
-
-
-END;
-GO
-
-  
-/*
-##################################################################################################  
-###########  ENTITY OBJECT DEFINITIONS FOR [State]
-##################################################################################################
-*/
-
-IF OBJECT_ID(N'ver.[state]', N'U') IS NOT NULL
-  DROP TABLE ver.[state]
-;
-
-CREATE TABLE ver.[state] (
-
-  -- VERSION IDENTITY KEY COLUMN
-  state_version_key INT IDENTITY(1000,1)
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_tran_pk PRIMARY KEY CLUSTERED (bill_tran_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_tran_version));
+
+/* ##################################################################################
+TABLE: Bill Policy Location
+##################################################################################### */
+
+CREATE TABLE dbo.[bill_policy_location] (
+  -- NAMED KEY COLUMN
+  bill_policy_location_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , state_uid VARCHAR(200) NOT NULL
+, bill_policy_location_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
- , country_uid VARCHAR(200)
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , state_code VARCHAR(20)
- , country_code VARCHAR(20)
- , state_name VARCHAR(200) NOT NULL
- , country_desc VARCHAR(200)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, source_uid VARCHAR(200) NOT NULL
-, source_rev_dtm DATETIME NOT NULL
-, source_rev_actor VARCHAR(200) NULL
-, source_delete_ind BIT NOT NULL
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-  -- VERSION COLUMNS
-, version_dtm DATETIME2
-, version_batch_key INT
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-, CONSTRAINT ver_state_pk
-    PRIMARY KEY NONCLUSTERED (state_version_key)
-);
-GO
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-CREATE CLUSTERED INDEX ver_state_cx ON
-  ver.[state] (state_uid);
-GO
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-IF OBJECT_ID(N'vex.[state]', N'U') IS NOT NULL
-DROP TABLE vex.[state]
-;
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-CREATE TABLE [vex].[state] (
-  
-  -- GENERAL NOTES: Many columns are marked as nullable in order to improve load efficiency. 
-  --   This is safe, assuming that loading is only handled through dedicated procs.
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_policy_location_pk PRIMARY KEY CLUSTERED (bill_policy_location_uid)
 
-  -- KEY COLUMNS
-  state_version_key INT NOT NULL
-, next_state_version_key INT NULL
-, state_key INT NULL
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_policy_location_version));
 
-  -- VERSION ATTRIBUTES
-, version_index INT NULL
-, version_current_ind BIT NULL
-, version_latest_ind BIT NULL
+/* ##################################################################################
+TABLE: Bill Broker
+##################################################################################### */
 
-  -- END OF RANGE COLUMNS
-, end_version_dtmx DATETIME2 NULL
-, end_version_batch_key INT NULL
-, end_source_rev_dtmx DATETIME2 NULL
-
-, CONSTRAINT vex_state_pk
-    PRIMARY KEY (state_version_key)
-)
-;
-GO
-
-CREATE UNIQUE INDEX vex_state_u1 ON
-  vex.[state] (state_key)
-  WHERE version_latest_ind = 1;
-GO
-
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-IF OBJECT_ID(N'dbo.[state]', N'V') IS NOT NULL
-DROP VIEW dbo.[state]
-;
-GO
-/* ################################################################################
-
-OBJECT: VIEW dbo.[state]
-
-DESCRIPTION: Exposes the current view of the version state table,
-  either latest or current version records.
-  
-RETURN DATASET:
-
-  - Columns are identical to the corresponding version table.
-  - The version key is retained for reference purposes.
-  - Assumes that grain column in the version table is unique based on version latest/current
-  - The filter "version_latest_ind = 1" is used for domain tables, whereas "version_current_ind = 1" is used for transaction tables.
-  - Because this only contains latest records, the end dates have been supressed; they are always null.
-
-NOTES:
-
-  Content views are provided as a way of exposing the current state records
-  of Version tables.  This makes it possible to query the dbo schema consistently
-  without special logic being applied by the analyst.
-
-HISTORY:
-
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-28  Jeff Kanel      1.0      Created by Centric Consulting, LLC
-
-################################################################################
-*/
-
-CREATE VIEW dbo.[state] AS
-SELECT 
-
-  -- KEY COLUMNS
-  vx.state_key
+CREATE TABLE dbo.[bill_broker] (
+  -- NAMED KEY COLUMN
+  bill_broker_key INT IDENTITY(1000,1)
 
   -- GRAIN COLUMNS
- , v.state_uid
+, bill_broker_uid VARCHAR(200)
 
-  -- FOREIGN REFERENCE COLUMNS
- , v.country_uid
+  -- ENTITY REFERENCE COLUMNS
 
   -- ATTRIBUTE COLUMNS
- , v.state_code
- , v.country_code
- , v.state_name
- , v.country_desc
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
   -- SOURCE COLUMNS
-, v.source_uid
-, v.source_rev_dtm
-, v.source_rev_actor
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-  -- VERSION COLUMNS
-, v.state_version_key
-, vx.version_index
-, v.version_dtm
-, vx.version_current_ind
-
-  -- BATCH COLUMNS
-, v.version_batch_key
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-FROM
-ver.state v
-INNER JOIN vex.state vx ON
-  vx.state_version_key = v.state_version_key
-WHERE
-vx.version_latest_ind = 1
-GO
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-IF OBJECT_ID(N'vex.[state_settle]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[state_settle]
-;
-GO
-/* ################################################################################
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-OBJECT: vex.[state_settle]
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_broker_pk PRIMARY KEY CLUSTERED (bill_broker_uid)
 
-DESCRIPTION: Truncates corresponding VEX table and reloads it using settle logic.
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_broker_version));
 
-PARAMETERS: None.
+/* ##################################################################################
+TABLE: Bill Policy Broker
+##################################################################################### */
 
-OUTPUT PARAMETERS: None.
+CREATE TABLE dbo.[bill_policy_broker] (
+  -- NAMED KEY COLUMN
+  bill_policy_broker_key INT IDENTITY(1000,1)
 
-RETURN VALUE: None.
+  -- GRAIN COLUMNS
+, bill_policy_broker_uid VARCHAR(200)
 
-RETURN DATASET: None.
+  -- ENTITY REFERENCE COLUMNS
 
-HISTORY:
+  -- ATTRIBUTE COLUMNS
 
-Date        Name            Version  Description
----------------------------------------------------------------------------------
-2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
-################################################################################ */
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-CREATE PROCEDURE vex.[state_settle] AS
-BEGIN
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-SET NOCOUNT ON;
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-TRUNCATE TABLE vex.[state];
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-INSERT INTO vex.[state] (
-  state_version_key
-, next_state_version_key
-, state_key
-, version_index
-, version_current_ind
-, version_latest_ind
-, end_version_dtmx
-, end_version_batch_key
-, end_source_rev_dtmx
-)
-SELECT
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-  v.state_version_key
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_policy_broker_pk PRIMARY KEY CLUSTERED (bill_policy_broker_uid)
 
-, LEAD(v.state_version_key, 1) OVER (
-    PARTITION BY v.state_uid
-    ORDER BY v.state_version_key ASC) AS next_state_version_key
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_policy_broker_version));
 
-, MIN(v.state_version_key) OVER (
-    PARTITION BY v.state_uid) AS state_key
+/* ##################################################################################
+TABLE: Bill Schedule Header
+##################################################################################### */
 
-, ROW_NUMBER() OVER (
-    PARTITION BY v.state_uid
-    ORDER BY v.state_version_key ASC) AS version_index
+CREATE TABLE dbo.[bill_schedule_header] (
+  -- NAMED KEY COLUMN
+  bill_schedule_header_key INT IDENTITY(1000,1)
 
-    -- XOR "^" inverts the deleted indicator
-  , CASE
-    WHEN LAST_VALUE(v.state_version_key) OVER (
-      PARTITION BY v.state_uid
-      ORDER BY v.state_version_key ASC
-      RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.state_version_key THEN v.source_delete_ind ^ 1
-    ELSE 0 END AS version_current_ind
+  -- GRAIN COLUMNS
+, bill_schedule_header_uid VARCHAR(200)
 
-, CASE
-  WHEN LAST_VALUE(v.state_version_key) OVER (
-    PARTITION BY v.state_uid
-    ORDER BY v.state_version_key ASC
-    RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.state_version_key THEN 1
-  ELSE 0 END AS version_latest_ind
+  -- ENTITY REFERENCE COLUMNS
 
-, LEAD(v.version_dtm, 1) OVER (
-    PARTITION BY v.state_uid
-    ORDER BY v.state_version_key ASC) AS end_version_dtmx
+  -- ATTRIBUTE COLUMNS
 
-  -- Back the LEAD batch key off by 1
-, LEAD(v.version_batch_key, 1) OVER (
-    PARTITION BY v.state_uid
-    ORDER BY v.state_version_key ASC) - 1 AS end_version_batch_key
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
-, LEAD(v.source_rev_dtm, 1) OVER (
-    PARTITION BY v.state_uid
-    ORDER BY v.state_version_key ASC) AS end_source_rev_dtmx
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-FROM
-ver.state v
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-END;
-GO
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-/* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-IF OBJECT_ID(N'vex.[state_settle_merge]', N'P') IS NOT NULL
-DROP PROCEDURE vex.[state_settle_merge]
-;
-GO
-/* ################################################################################
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_schedule_header_pk PRIMARY KEY CLUSTERED (bill_schedule_header_uid)
 
-OBJECT: vex.[state_settle_merge]
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_schedule_header_version));
 
-DESCRIPTION: Performs a merge of all version records related to grain values that have been affected
-  on or after the specified batch key.
+/* ##################################################################################
+TABLE: Bill Schedule Detail
+##################################################################################### */
 
-PARAMETERS:
+CREATE TABLE dbo.[bill_schedule_detail] (
+  -- NAMED KEY COLUMN
+  bill_schedule_detail_key INT IDENTITY(1000,1)
 
-  @begin_version_batch_key INT = The minimum batch key used to determine with grain records should
-    be considered in the settle.
-  
-OUTPUT PARAMETERS: None.
-  
-RETURN VALUE: None.
+  -- GRAIN COLUMNS
+, bill_schedule_detail_uid VARCHAR(200)
 
-RETURN DATASET: None.
-  
-HISTORY:
+  -- ENTITY REFERENCE COLUMNS
 
-  Date        Name            Version  Description
-  ---------------------------------------------------------------------------------
-  2017-12-27  Jeff Kanel      1.0      Created by Centric Consulting, LLC
+  -- ATTRIBUTE COLUMNS
 
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
-################################################################################ */
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-CREATE PROCEDURE vex.[state_settle_merge] 
-  @begin_version_batch_key INT
-, @suspend_cleanup_ind BIT = 0  
-AS
-BEGIN
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-  SET NOCOUNT ON;
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-  -- cleanup orphaned VEX records
-  IF @suspend_cleanup_ind = 0
-  BEGIN
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-    DELETE vt FROM
-    vex.state vt
-    WHERE
-    NOT EXISTS (
-      SELECT 1 FROM ver.state vs
-      WHERE vs.state_version_key = vt.state_version_key
-    );
-
-  END
-
-
-  MERGE vex.state WITH (HOLDLOCK) AS vt
-
-  USING (
-  
-    SELECT
-
-      v.state_version_key
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-    , LEAD(v.state_version_key, 1) OVER (
-        PARTITION BY v.state_uid
-        ORDER BY v.state_version_key ASC) AS next_state_version_key
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_schedule_detail_pk PRIMARY KEY CLUSTERED (bill_schedule_detail_uid)
 
-    , MIN(v.state_version_key) OVER (
-        PARTITION BY v.state_uid) AS state_key
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_schedule_detail_version));
 
-    , ROW_NUMBER() OVER (
-        PARTITION BY v.state_uid
-        ORDER BY v.state_version_key ASC) AS version_index
+/* ##################################################################################
+TABLE: Bill Payment Header
+##################################################################################### */
 
-      -- XOR "^" inverts the deleted indicator
-    , CASE
-      WHEN LAST_VALUE(v.state_version_key) OVER (
-        PARTITION BY v.state_uid
-        ORDER BY v.state_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.state_version_key THEN v.source_delete_ind ^ 1
-      ELSE 0 END AS version_current_ind
+CREATE TABLE dbo.[bill_payment_header] (
+  -- NAMED KEY COLUMN
+  bill_payment_header_key INT IDENTITY(1000,1)
 
-    , CASE
-      WHEN LAST_VALUE(v.state_version_key) OVER (
-        PARTITION BY v.state_uid
-        ORDER BY v.state_version_key ASC
-        RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) = v.state_version_key THEN 1
-      ELSE 0 END AS version_latest_ind
+  -- GRAIN COLUMNS
+, bill_payment_header_uid VARCHAR(200)
 
-    , LEAD(v.version_dtm, 1) OVER (
-        PARTITION BY v.state_uid
-        ORDER BY v.state_version_key ASC) AS end_version_dtmx
+  -- ENTITY REFERENCE COLUMNS
 
-      -- Back the LEAD batch key off by 1
-    , LEAD(v.version_batch_key, 1) OVER (
-        PARTITION BY v.state_uid
-        ORDER BY v.state_version_key ASC) - 1 AS end_version_batch_key
+  -- ATTRIBUTE COLUMNS
 
-    , LEAD(v.source_rev_dtm, 1) OVER (
-        PARTITION BY v.state_uid
-        ORDER BY v.state_version_key ASC) AS end_source_rev_dtmx
+/* ### BOILERPLATE BELOW THIS LINE ### */
 
-    FROM
-    ver.state v
-    WHERE
-    EXISTS (
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
 
-	    SELECT 1 FROM ver.state vg
-	    WHERE vg.version_batch_key >= @begin_version_batch_key AND
-      vg.state_uid = v.state_uid
+  -- AUDIT BATCH KEY
+, batch_key INT
 
-    )
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
 
-  ) AS vs
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
 
-  ON vs.state_version_key = vt.state_version_key 
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
 
-  WHEN MATCHED
-    AND COALESCE(vs.next_state_version_key, -1) != 
-      COALESCE(vt.next_state_version_key, -1) THEN
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_payment_header_pk PRIMARY KEY CLUSTERED (bill_payment_header_uid)
 
-    UPDATE SET
-      next_state_version_key = vs.next_state_version_key
-    , state_key = vs.state_key
-    , version_index = vs.version_index
-    , version_current_ind = vs.version_current_ind
-    , version_latest_ind = vs.version_latest_ind
-    , end_version_dtmx = vs.end_version_dtmx
-    , end_version_batch_key = vs.end_version_batch_key
-    , end_source_rev_dtmx = vs.end_source_rev_dtmx
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_payment_header_version));
 
-  WHEN NOT MATCHED BY TARGET THEN
+/* ##################################################################################
+TABLE: Bill Payment Detail
+##################################################################################### */
 
-    INSERT (
-      state_version_key
-    , next_state_version_key
-    , state_key
-    , version_index
-    , version_current_ind
-    , version_latest_ind
-    , end_version_dtmx
-    , end_version_batch_key
-    , end_source_rev_dtmx
-    )  VALUES (
-      vs.state_version_key
-    , vs.next_state_version_key
-    , vs.state_key
-    , vs.version_index
-    , vs.version_current_ind
-    , vs.version_latest_ind
-    , vs.end_version_dtmx
-    , vs.end_version_batch_key
-    , vs.end_source_rev_dtmx
-    )
+CREATE TABLE dbo.[bill_payment_detail] (
+  -- NAMED KEY COLUMN
+  bill_payment_detail_key INT IDENTITY(1000,1)
 
-  ;
+  -- GRAIN COLUMNS
+, bill_payment_detail_uid VARCHAR(200)
 
+  -- ENTITY REFERENCE COLUMNS
 
-END;
-GO
+  -- ATTRIBUTE COLUMNS
 
-  
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_payment_detail_pk PRIMARY KEY CLUSTERED (bill_payment_detail_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_payment_detail_version));
+
+/* ##################################################################################
+TABLE: Bill Received Allocation
+##################################################################################### */
+
+CREATE TABLE dbo.[bill_received_allocation] (
+  -- NAMED KEY COLUMN
+  bill_received_allocation_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, bill_received_allocation_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_received_allocation_pk PRIMARY KEY CLUSTERED (bill_received_allocation_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_received_allocation_version));
+
+/* ##################################################################################
+TABLE: Bill Invoice Header
+##################################################################################### */
+
+CREATE TABLE dbo.[bill_invoice_header] (
+  -- NAMED KEY COLUMN
+  bill_invoice_header_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, bill_invoice_header_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_invoice_header_pk PRIMARY KEY CLUSTERED (bill_invoice_header_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_invoice_header_version));
+
+/* ##################################################################################
+TABLE: Bill Invoice Detail
+##################################################################################### */
+
+CREATE TABLE dbo.[bill_invoice_detail] (
+  -- NAMED KEY COLUMN
+  bill_invoice_detail_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, bill_invoice_detail_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, bill_invoice_header_uid VARCHAR(200)
+, bill_schedule_header_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_invoice_detail_pk PRIMARY KEY CLUSTERED (bill_invoice_detail_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_invoice_detail_version));
+
+/* ##################################################################################
+TABLE: Bill Promise to Pay
+##################################################################################### */
+
+CREATE TABLE dbo.[bill_promise_to_pay] (
+  -- NAMED KEY COLUMN
+  bill_promise_to_pay_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, bill_promise_to_pay_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_promise_to_pay_pk PRIMARY KEY CLUSTERED (bill_promise_to_pay_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_promise_to_pay_version));
+
+/* ##################################################################################
+TABLE: Bill Promise to Pay Allocation
+##################################################################################### */
+
+CREATE TABLE dbo.[bill_promise_to_pay_allocation] (
+  -- NAMED KEY COLUMN
+  bill_promise_to_pay_allocation_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, bill_promise_to_pay_allocation_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_promise_to_pay_allocation_pk PRIMARY KEY CLUSTERED (bill_promise_to_pay_allocation_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_promise_to_pay_allocation_version));
+
+/* ##################################################################################
+TABLE: Bill Schedule Discrepancy
+##################################################################################### */
+
+CREATE TABLE dbo.[bill_schedule_discrepancy] (
+  -- NAMED KEY COLUMN
+  bill_schedule_discrepancy_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, bill_schedule_discrepancy_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_schedule_discrepancy_pk PRIMARY KEY CLUSTERED (bill_schedule_discrepancy_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_schedule_discrepancy_version));
+
+/* ##################################################################################
+TABLE: Bill Overpayment Discrepancy
+##################################################################################### */
+
+CREATE TABLE dbo.[bill_overpayment_discrepancy] (
+  -- NAMED KEY COLUMN
+  bill_overpayment_discrepancy_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, bill_overpayment_discrepancy_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_overpayment_discrepancy_pk PRIMARY KEY CLUSTERED (bill_overpayment_discrepancy_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_overpayment_discrepancy_version));
+
+/* ##################################################################################
+TABLE: Bill Retained Commission
+##################################################################################### */
+
+CREATE TABLE dbo.[bill_retained_commission] (
+  -- NAMED KEY COLUMN
+  bill_retained_commission_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, bill_retained_commission_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_retained_commission_pk PRIMARY KEY CLUSTERED (bill_retained_commission_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_retained_commission_version));
+
+/* ##################################################################################
+TABLE: Bill Commsion Earned
+##################################################################################### */
+
+CREATE TABLE dbo.[bill_commsion_earned] (
+  -- NAMED KEY COLUMN
+  bill_commsion_earned_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, bill_commsion_earned_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_commsion_earned_pk PRIMARY KEY CLUSTERED (bill_commsion_earned_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_commsion_earned_version));
+
+/* ##################################################################################
+TABLE: Bill Commission Paid
+##################################################################################### */
+
+CREATE TABLE dbo.[bill_commission_paid] (
+  -- NAMED KEY COLUMN
+  bill_commission_paid_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, bill_commission_paid_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_commission_paid_pk PRIMARY KEY CLUSTERED (bill_commission_paid_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_commission_paid_version));
+
+/* ##################################################################################
+TABLE: Bill Commission Statement
+##################################################################################### */
+
+CREATE TABLE dbo.[bill_commission_statement] (
+  -- NAMED KEY COLUMN
+  bill_commission_statement_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, bill_commission_statement_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, bill_broker_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_commission_statement_pk PRIMARY KEY CLUSTERED (bill_commission_statement_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_commission_statement_version));
+
+/* ##################################################################################
+TABLE: Bill Broker Allocation Request
+##################################################################################### */
+
+CREATE TABLE dbo.[bill_broker_allocation_request] (
+  -- NAMED KEY COLUMN
+  bill_broker_allocation_request_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, bill_broker_allocation_request_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_broker_allocation_request_pk PRIMARY KEY CLUSTERED (bill_broker_allocation_request_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_broker_allocation_request_version));
+
+/* ##################################################################################
+TABLE: Bill Broker Allocation Request Detail
+##################################################################################### */
+
+CREATE TABLE dbo.[bill_broker_allocation_request_detail] (
+  -- NAMED KEY COLUMN
+  bill_broker_allocation_request_detail_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, bill_broker_allocation_request_detail_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_broker_allocation_request_detail_pk PRIMARY KEY CLUSTERED (bill_broker_allocation_request_detail_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_broker_allocation_request_detail_version));
+
+/* ##################################################################################
+TABLE: Bill Policy Transaction
+##################################################################################### */
+
+CREATE TABLE dbo.[bill_policy_tran] (
+  -- NAMED KEY COLUMN
+  bill_policy_tran_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, bill_policy_tran_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_bill_policy_tran_pk PRIMARY KEY CLUSTERED (bill_policy_tran_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.bill_policy_tran_version));
+
+/* ##################################################################################
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+SUBJECT AREA: Policy (34 Tables)
+
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+##################################################################################### */
+
+
+/* ##################################################################################
+TABLE: Auto Risk
+##################################################################################### */
+
+CREATE TABLE dbo.[auto_risk] (
+  -- NAMED KEY COLUMN
+  auto_risk_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, risk_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, vehicle_class_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, make_desc VARCHAR(1000)
+, model_desc VARCHAR(1000)
+, manufacture_year_value INT
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_auto_risk_pk PRIMARY KEY CLUSTERED (risk_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.auto_risk_version));
+
+/* ##################################################################################
+TABLE: Driver
+##################################################################################### */
+
+CREATE TABLE dbo.[driver] (
+  -- NAMED KEY COLUMN
+  driver_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, driver_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, policy_tran_uid VARCHAR(200)
+, license_state_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, first_name VARCHAR(200)
+, middle_name VARCHAR(200)
+, last_name VARCHAR(200)
+, license_number VARCHAR(200)
+, license_status_desc VARCHAR(1000)
+, mvr_pull_ind BIT
+, mvr_pull_date DATE
+, full_name VARCHAR(200)
+, coll_full_name VARCHAR(200)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_driver_pk PRIMARY KEY CLUSTERED (driver_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.driver_version));
+
+/* ##################################################################################
+TABLE: Coverage Location Risk
+##################################################################################### */
+
+CREATE TABLE dbo.[coverage_location_risk] (
+  -- NAMED KEY COLUMN
+  coverage_location_risk_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, coverage_uid VARCHAR(200)
+, location_uid VARCHAR(200)
+, risk_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, schedule_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_coverage_location_risk_pk PRIMARY KEY CLUSTERED (coverage_uid, location_uid, risk_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.coverage_location_risk_version));
+
+/* ##################################################################################
+TABLE: Location
+##################################################################################### */
+
+CREATE TABLE dbo.[location] (
+  -- NAMED KEY COLUMN
+  location_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, location_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, policy_tran_uid VARCHAR(200)
+, physical_address_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, location_identifier VARCHAR(200)
+, location_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_location_pk PRIMARY KEY CLUSTERED (location_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.location_version));
+
+/* ##################################################################################
+TABLE: Named Insured
+##################################################################################### */
+
+CREATE TABLE dbo.[named_insured] (
+  -- NAMED KEY COLUMN
+  named_insured_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, named_insured_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, policy_uid VARCHAR(200)
+, policy_tran_uid VARCHAR(200)
+, named_insured_type_uid VARCHAR(200)
+, mail_address_uid VARCHAR(200)
+, bill_address_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, first_name VARCHAR(200)
+, middle_name VARCHAR(200)
+, last_name VARCHAR(200)
+, coll_full_name VARCHAR(200)
+, bill_name VARCHAR(200)
+, current_active_indicator_flag VARCHAR(20)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_named_insured_pk PRIMARY KEY CLUSTERED (named_insured_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.named_insured_version));
+
+/* ##################################################################################
+TABLE: Policy
+##################################################################################### */
+
+CREATE TABLE dbo.[policy] (
+  -- NAMED KEY COLUMN
+  policy_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, policy_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, current_policy_status_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, policy_number VARCHAR(200)
+, legacy_policy_number VARCHAR(200)
+, policy_form_code VARCHAR(20)
+, initial_quote_date DATE
+, new_business_effect_date DATE
+, current_in_force_ind BIT
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_policy_pk PRIMARY KEY CLUSTERED (policy_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.policy_version));
+
+/* ##################################################################################
+TABLE: Policy Term
+##################################################################################### */
+
+CREATE TABLE dbo.[policy_term] (
+  -- NAMED KEY COLUMN
+  policy_term_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, policy_uid VARCHAR(200)
+, policy_term_index INT
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, effect_date DATE
+, expire_date DATE
+, policy_end_date DATE
+, in_force_ind BIT
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_policy_term_pk PRIMARY KEY CLUSTERED (policy_uid, policy_term_index)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.policy_term_version));
+
+/* ##################################################################################
+TABLE: Policy Transaction
+##################################################################################### */
+
+CREATE TABLE dbo.[policy_tran] (
+  -- NAMED KEY COLUMN
+  policy_tran_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, policy_tran_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, policy_uid VARCHAR(200)
+, agency_uid VARCHAR(200)
+, producer_uid VARCHAR(200)
+, tran_status_uid VARCHAR(200)
+, policy_tran_type_uid VARCHAR(200)
+, policy_tran_reason_uid VARCHAR(200)
+, policy_tran_source_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, effect_date DATE
+, expire_date DATE
+, start_date DATE
+, last_update_date DATE
+, process_date DATE
+, accounting_date DATE
+, written_prem_amount DECIMAL(20,12)
+, written_prem_tax_fee_amount DECIMAL(20,12)
+, full_term_prem_amount DECIMAL(20,12)
+, full_term_prem_tax_fee_amount DECIMAL(20,12)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_policy_tran_pk PRIMARY KEY CLUSTERED (policy_tran_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.policy_tran_version));
+
+/* ##################################################################################
+TABLE: Property Risk
+##################################################################################### */
+
+CREATE TABLE dbo.[property_risk] (
+  -- NAMED KEY COLUMN
+  property_risk_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, risk_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, building_identifier VARCHAR(200)
+, construction_type_desc VARCHAR(1000)
+, square_footage_value FLOAT
+, roof_type_desc VARCHAR(1000)
+, construction_year_value FLOAT
+, story_count INT
+, actual_property_value_amount DECIMAL(20,12)
+, replacement_cost_amount DECIMAL(20,12)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_property_risk_pk PRIMARY KEY CLUSTERED (risk_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.property_risk_version));
+
+/* ##################################################################################
+TABLE: Risk
+##################################################################################### */
+
+CREATE TABLE dbo.[risk] (
+  -- NAMED KEY COLUMN
+  risk_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, risk_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, policy_tran_uid VARCHAR(200)
+, location_uid VARCHAR(200)
+, risk_type_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, full_term_prem_amount DECIMAL(20,12)
+, risk_identifier VARCHAR(200)
+, displayed_risk_identifier VARCHAR(200)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_risk_pk PRIMARY KEY CLUSTERED (risk_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.risk_version));
+
+/* ##################################################################################
+TABLE: Schedule
+##################################################################################### */
+
+CREATE TABLE dbo.[schedule] (
+  -- NAMED KEY COLUMN
+  schedule_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, schedule_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, schedule_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_schedule_pk PRIMARY KEY CLUSTERED (schedule_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.schedule_version));
+
+/* ##################################################################################
+TABLE: Policy Transaction Detail
+##################################################################################### */
+
+CREATE TABLE dbo.[policy_tran_detail] (
+  -- NAMED KEY COLUMN
+  policy_tran_detail_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, policy_tran_detail_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, policy_uid VARCHAR(200)
+, policy_tran_uid VARCHAR(200)
+, coverage_uid VARCHAR(200)
+, limit_uid VARCHAR(200)
+, deductible_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, manual_deductible_amount DECIMAL(20,12)
+, manual_limit_amount DECIMAL(20,12)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_policy_tran_detail_pk PRIMARY KEY CLUSTERED (policy_tran_detail_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.policy_tran_detail_version));
+
+/* ##################################################################################
+TABLE: Deductible
+##################################################################################### */
+
+CREATE TABLE dbo.[deductible] (
+  -- NAMED KEY COLUMN
+  deductible_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, deductible_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, deductible_type_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, deductible_desc VARCHAR(1000)
+, deductible_amount DECIMAL(20,12)
+, deductible_rate DECIMAL(20,12)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_deductible_pk PRIMARY KEY CLUSTERED (deductible_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.deductible_version));
+
+/* ##################################################################################
+TABLE: Limit
+##################################################################################### */
+
+CREATE TABLE dbo.[limit] (
+  -- NAMED KEY COLUMN
+  limit_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, limit_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, limit_type_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, limit_desc VARCHAR(1000)
+, limit_amount DECIMAL(20,12)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_limit_pk PRIMARY KEY CLUSTERED (limit_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.limit_version));
+
+/* ##################################################################################
+TABLE: Policy Transaction Detail Premium
+##################################################################################### */
+
+CREATE TABLE dbo.[policy_tran_detail_prem] (
+  -- NAMED KEY COLUMN
+  policy_tran_detail_prem_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, policy_tran_detail_prem_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, policy_uid VARCHAR(200)
+, policy_tran_uid VARCHAR(200)
+, tran_detail_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, written_prem_amount DECIMAL(20,12)
+, full_term_prem_amount DECIMAL(20,12)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_policy_tran_detail_prem_pk PRIMARY KEY CLUSTERED (policy_tran_detail_prem_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.policy_tran_detail_prem_version));
+
+/* ##################################################################################
+TABLE: Driver Risk
+##################################################################################### */
+
+CREATE TABLE dbo.[driver_risk] (
+  -- NAMED KEY COLUMN
+  driver_risk_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, driver_uid VARCHAR(200)
+, risk_uid VARCHAR(200)
+, driver_type_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_driver_risk_pk PRIMARY KEY CLUSTERED (driver_uid, risk_uid, driver_type_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.driver_risk_version));
+
+/* ##################################################################################
+TABLE: Workers Compensation Risk
+##################################################################################### */
+
+CREATE TABLE dbo.[wc_risk] (
+  -- NAMED KEY COLUMN
+  wc_risk_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, risk_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, ncci_class_uid VARCHAR(200)
+, state_class_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, annual_payroll_amount DECIMAL(20,12)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_wc_risk_pk PRIMARY KEY CLUSTERED (risk_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.wc_risk_version));
+
+/* ##################################################################################
+TABLE: Vehicle Classification
+##################################################################################### */
+
+CREATE TABLE dbo.[vehicle_class] (
+  -- NAMED KEY COLUMN
+  vehicle_class_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, vehicle_class_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, vehicle_class_code VARCHAR(20)
+, vehicle_class_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_vehicle_class_pk PRIMARY KEY CLUSTERED (vehicle_class_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.vehicle_class_version));
+
+/* ##################################################################################
+TABLE: Driver Type
+##################################################################################### */
+
+CREATE TABLE dbo.[driver_type] (
+  -- NAMED KEY COLUMN
+  driver_type_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, driver_type_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, driver_type_code VARCHAR(20)
+, driver_type_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_driver_type_pk PRIMARY KEY CLUSTERED (driver_type_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.driver_type_version));
+
+/* ##################################################################################
+TABLE: Policy Transaction Type
+##################################################################################### */
+
+CREATE TABLE dbo.[policy_tran_type] (
+  -- NAMED KEY COLUMN
+  policy_tran_type_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, policy_tran_type_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, policy_tran_type_code VARCHAR(20)
+, policy_tran_type_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_policy_tran_type_pk PRIMARY KEY CLUSTERED (policy_tran_type_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.policy_tran_type_version));
+
+/* ##################################################################################
+TABLE: Policy Transaction Status
+##################################################################################### */
+
+CREATE TABLE dbo.[policy_tran_status] (
+  -- NAMED KEY COLUMN
+  policy_tran_status_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, policy_tran_status_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, policy_tran_status_code VARCHAR(20)
+, policy_tran_status_desc VARCHAR(1000)
+, complete_ind BIT
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_policy_tran_status_pk PRIMARY KEY CLUSTERED (policy_tran_status_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.policy_tran_status_version));
+
+/* ##################################################################################
+TABLE: Policy Transaction Reason
+##################################################################################### */
+
+CREATE TABLE dbo.[policy_tran_reason] (
+  -- NAMED KEY COLUMN
+  policy_tran_reason_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, policy_tran_reason_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, policy_tran_reason_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_policy_tran_reason_pk PRIMARY KEY CLUSTERED (policy_tran_reason_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.policy_tran_reason_version));
+
+/* ##################################################################################
+TABLE: Risk Type
+##################################################################################### */
+
+CREATE TABLE dbo.[risk_type] (
+  -- NAMED KEY COLUMN
+  risk_type_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, risk_type_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, risk_type_code VARCHAR(20)
+, risk_type_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_risk_type_pk PRIMARY KEY CLUSTERED (risk_type_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.risk_type_version));
+
+/* ##################################################################################
+TABLE: Producer Assignment
+##################################################################################### */
+
+CREATE TABLE dbo.[producer_assignment] (
+  -- NAMED KEY COLUMN
+  producer_assignment_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, agency_uid VARCHAR(200)
+, producer_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_producer_assignment_pk PRIMARY KEY CLUSTERED (agency_uid, producer_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.producer_assignment_version));
+
+/* ##################################################################################
+TABLE: Producer
+##################################################################################### */
+
+CREATE TABLE dbo.[producer] (
+  -- NAMED KEY COLUMN
+  producer_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, producer_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, primary_address_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, producer_code VARCHAR(20)
+, producer_desc VARCHAR(1000)
+, first_name VARCHAR(200)
+, last_name VARCHAR(200)
+, business_phone_number VARCHAR(200)
+, spouse_phone_number VARCHAR(200)
+, business_email_address VARCHAR(200)
+, home_email_address VARCHAR(200)
+, coll_full_name VARCHAR(200)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_producer_pk PRIMARY KEY CLUSTERED (producer_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.producer_version));
+
+/* ##################################################################################
+TABLE: Policy Status
+##################################################################################### */
+
+CREATE TABLE dbo.[policy_status] (
+  -- NAMED KEY COLUMN
+  policy_status_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, policy_status_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, policy_status_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_policy_status_pk PRIMARY KEY CLUSTERED (policy_status_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.policy_status_version));
+
+/* ##################################################################################
+TABLE: Named Insured Type
+##################################################################################### */
+
+CREATE TABLE dbo.[named_insured_type] (
+  -- NAMED KEY COLUMN
+  named_insured_type_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, named_insured_type_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, named_insured_type_code VARCHAR(20)
+, named_insured_type_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_named_insured_type_pk PRIMARY KEY CLUSTERED (named_insured_type_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.named_insured_type_version));
+
+/* ##################################################################################
+TABLE: Limit Type
+##################################################################################### */
+
+CREATE TABLE dbo.[limit_type] (
+  -- NAMED KEY COLUMN
+  limit_type_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, limit_type_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, limit_type_code VARCHAR(20)
+, limit_type_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_limit_type_pk PRIMARY KEY CLUSTERED (limit_type_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.limit_type_version));
+
+/* ##################################################################################
+TABLE: License
+##################################################################################### */
+
+CREATE TABLE dbo.[license] (
+  -- NAMED KEY COLUMN
+  license_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, license_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, agency_uid VARCHAR(200)
+, producer_uid VARCHAR(200)
+, license_state_uid VARCHAR(200)
+, lob_uid VARCHAR(200)
+, license_type_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, effect_date DATE
+, expire_date DATE
+, license_number VARCHAR(200)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_license_pk PRIMARY KEY CLUSTERED (license_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.license_version));
+
+/* ##################################################################################
+TABLE: License Type
+##################################################################################### */
+
+CREATE TABLE dbo.[license_type] (
+  -- NAMED KEY COLUMN
+  license_type_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, license_type_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, license_type_code VARCHAR(20)
+, license_type_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_license_type_pk PRIMARY KEY CLUSTERED (license_type_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.license_type_version));
+
+/* ##################################################################################
+TABLE: Company
+##################################################################################### */
+
+CREATE TABLE dbo.[company] (
+  -- NAMED KEY COLUMN
+  company_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, company_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, corp_hq_state_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, company_code VARCHAR(20)
+, company_name VARCHAR(200)
+, am_best_number VARCHAR(200)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_company_pk PRIMARY KEY CLUSTERED (company_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.company_version));
+
+/* ##################################################################################
+TABLE: Agency
+##################################################################################### */
+
+CREATE TABLE dbo.[agency] (
+  -- NAMED KEY COLUMN
+  agency_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, agency_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, primary_address_uid VARCHAR(200)
+, mail_address_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, agency_code VARCHAR(20)
+, agency_name VARCHAR(200)
+, agency_group_name VARCHAR(200)
+, phone_number VARCHAR(200)
+, fax_number VARCHAR(200)
+, primary_email_address VARCHAR(200)
+, appointment_date DATE
+, termination_date DATE
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_agency_pk PRIMARY KEY CLUSTERED (agency_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.agency_version));
+
+/* ##################################################################################
+TABLE: Deductible Type
+##################################################################################### */
+
+CREATE TABLE dbo.[deductible_type] (
+  -- NAMED KEY COLUMN
+  deductible_type_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, deductible_type_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, deductible_type_code VARCHAR(20)
+, deductible_type_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_deductible_type_pk PRIMARY KEY CLUSTERED (deductible_type_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.deductible_type_version));
+
+/* ##################################################################################
+TABLE: Policy Transaction Source
+##################################################################################### */
+
+CREATE TABLE dbo.[policy_tran_source] (
+  -- NAMED KEY COLUMN
+  policy_tran_source_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, policy_tran_source_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, policty_tran_source_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_policy_tran_source_pk PRIMARY KEY CLUSTERED (policy_tran_source_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.policy_tran_source_version));
+
+/* ##################################################################################
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+SUBJECT AREA: Quote (6 Tables)
+
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+##################################################################################### */
+
+
+/* ##################################################################################
+TABLE: Quote Channel
+##################################################################################### */
+
+CREATE TABLE dbo.[quote_channel] (
+  -- NAMED KEY COLUMN
+  quote_channel_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, quote_channel_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, quote_channel_code VARCHAR(20)
+, quote_channel_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_quote_channel_pk PRIMARY KEY CLUSTERED (quote_channel_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.quote_channel_version));
+
+/* ##################################################################################
+TABLE: Submission
+##################################################################################### */
+
+CREATE TABLE dbo.[submission] (
+  -- NAMED KEY COLUMN
+  submission_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, submission_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, submission_desc VARCHAR(1000)
+, submission_date DATE
+, response_due_date DATE
+, effect_date DATE
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_submission_pk PRIMARY KEY CLUSTERED (submission_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.submission_version));
+
+/* ##################################################################################
+TABLE: Marketing Campaign
+##################################################################################### */
+
+CREATE TABLE dbo.[marketing_campaign] (
+  -- NAMED KEY COLUMN
+  marketing_campaign_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, marketing_campaign_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, marketing_campaign_desc VARCHAR(1000)
+, market_desc VARCHAR(1000)
+, begin_campaign_date DATE
+, end_campaign_date DATE
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_marketing_campaign_pk PRIMARY KEY CLUSTERED (marketing_campaign_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.marketing_campaign_version));
+
+/* ##################################################################################
+TABLE: Marketing Channel
+##################################################################################### */
+
+CREATE TABLE dbo.[marketing_channel] (
+  -- NAMED KEY COLUMN
+  marketing_channel_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, marketing_channel_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, marketing_channel_desc_code VARCHAR(20)
+, marketing_channel_code_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_marketing_channel_pk PRIMARY KEY CLUSTERED (marketing_channel_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.marketing_channel_version));
+
+/* ##################################################################################
+TABLE: Quote Status
+##################################################################################### */
+
+CREATE TABLE dbo.[quote_status] (
+  -- NAMED KEY COLUMN
+  quote_status_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, quote_status_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, quote_status_code VARCHAR(20)
+, quote_status_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_quote_status_pk PRIMARY KEY CLUSTERED (quote_status_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.quote_status_version));
+
+/* ##################################################################################
+TABLE: Quote
+##################################################################################### */
+
+CREATE TABLE dbo.[quote] (
+  -- NAMED KEY COLUMN
+  quote_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, quote_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, quote_date DATE
+, quote_prem_amount DECIMAL(20,12)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_quote_pk PRIMARY KEY CLUSTERED (quote_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.quote_version));
+
+/* ##################################################################################
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+SUBJECT AREA: Reference Data (11 Tables)
+
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+##################################################################################### */
+
+
+/* ##################################################################################
+TABLE: Address
+##################################################################################### */
+
+CREATE TABLE dbo.[address] (
+  -- NAMED KEY COLUMN
+  address_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, address_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, state_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, address_desc VARCHAR(1000)
+, delivery_line_01_desc VARCHAR(1000)
+, delivery_line_02_desc VARCHAR(1000)
+, delivery_line_03_desc VARCHAR(1000)
+, city_name VARCHAR(200)
+, postal_code VARCHAR(20)
+, plus4_postal_code VARCHAR(20)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_address_pk PRIMARY KEY CLUSTERED (address_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.address_version));
+
+/* ##################################################################################
+TABLE: Coverage
+##################################################################################### */
+
+CREATE TABLE dbo.[coverage] (
+  -- NAMED KEY COLUMN
+  coverage_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, coverage_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, lob_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, coverage_code VARCHAR(20)
+, coverage_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_coverage_pk PRIMARY KEY CLUSTERED (coverage_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.coverage_version));
+
+/* ##################################################################################
+TABLE: ICD10 Diagnosis
+##################################################################################### */
+
+CREATE TABLE dbo.[icd10_diagnosis] (
+  -- NAMED KEY COLUMN
+  icd10_diagnosis_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, icd10_diagnosis_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, icd10_diagnosis_code VARCHAR(20)
+, icd10_diagnosis_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_icd10_diagnosis_pk PRIMARY KEY CLUSTERED (icd10_diagnosis_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.icd10_diagnosis_version));
+
+/* ##################################################################################
+TABLE: LOB
+##################################################################################### */
+
+CREATE TABLE dbo.[lob] (
+  -- NAMED KEY COLUMN
+  lob_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, lob_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, lob_type_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, lob_code VARCHAR(20)
+, lob_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_lob_pk PRIMARY KEY CLUSTERED (lob_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.lob_version));
+
+/* ##################################################################################
+TABLE: LOB Type
+##################################################################################### */
+
+CREATE TABLE dbo.[lob_type] (
+  -- NAMED KEY COLUMN
+  lob_type_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, lob_type_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, lob_type_code VARCHAR(20)
+, lob_type_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_lob_type_pk PRIMARY KEY CLUSTERED (lob_type_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.lob_type_version));
+
+/* ##################################################################################
+TABLE: NCCI Classification
+##################################################################################### */
+
+CREATE TABLE dbo.[ncci_class] (
+  -- NAMED KEY COLUMN
+  ncci_class_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, ncci_class_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, ncci_class_code VARCHAR(20)
+, ncci_class_desc VARCHAR(1000)
+, ncci_class_category_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_ncci_class_pk PRIMARY KEY CLUSTERED (ncci_class_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.ncci_class_version));
+
+/* ##################################################################################
+TABLE: Product
+##################################################################################### */
+
+CREATE TABLE dbo.[product] (
+  -- NAMED KEY COLUMN
+  product_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, product_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, lob_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, product_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_product_pk PRIMARY KEY CLUSTERED (product_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.product_version));
+
+/* ##################################################################################
+TABLE: State
+##################################################################################### */
+
+CREATE TABLE dbo.[state] (
+  -- NAMED KEY COLUMN
+  state_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, state_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, state_code VARCHAR(20)
+, state_name VARCHAR(200)
+, iso_state_code VARCHAR(20)
+, ncci_state_code VARCHAR(20)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_state_pk PRIMARY KEY CLUSTERED (state_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.state_version));
+
+/* ##################################################################################
+TABLE: State Classification
+##################################################################################### */
+
+CREATE TABLE dbo.[state_class] (
+  -- NAMED KEY COLUMN
+  state_class_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, state_class_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, state_class_code VARCHAR(20)
+, state_class_desc VARCHAR(1000)
+, state_class_category_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_state_class_pk PRIMARY KEY CLUSTERED (state_class_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.state_class_version));
+
+/* ##################################################################################
+TABLE: User
+##################################################################################### */
+
+CREATE TABLE dbo.[user] (
+  -- NAMED KEY COLUMN
+  user_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, user_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+, user_type_uid VARCHAR(200)
+
+  -- ATTRIBUTE COLUMNS
+, login_name VARCHAR(200)
+, user_desc VARCHAR(1000)
+, email_address_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_user_pk PRIMARY KEY CLUSTERED (user_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.user_version));
+
+/* ##################################################################################
+TABLE: User Type
+##################################################################################### */
+
+CREATE TABLE dbo.[user_type] (
+  -- NAMED KEY COLUMN
+  user_type_key INT IDENTITY(1000,1)
+
+  -- GRAIN COLUMNS
+, user_type_uid VARCHAR(200)
+
+  -- ENTITY REFERENCE COLUMNS
+
+  -- ATTRIBUTE COLUMNS
+, user_type_desc VARCHAR(1000)
+
+/* ### BOILERPLATE BELOW THIS LINE ### */
+
+  -- SOURCE COLUMNS
+, source_uid VARCHAR(200)
+, source_rev_timestamp DATETIME2
+, source_rev_actor_desc VARCHAR(200)
+
+  -- AUDIT BATCH KEY
+, batch_key INT
+
+  -- TEMPORAL COLUMNS
+, version_begin_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW START
+    CONSTRAINT dbo_policy_version_begin
+    DEFAULT SYSUTCDATETIME() NOT NULL
+
+, version_end_timestamp DATETIME2
+    GENERATED ALWAYS AS ROW END
+    CONSTRAINT dbo_policy_version_end
+    DEFAULT CONVERT(DATETIME2,'9999-12-31 23:59:59') NOT NULL
+
+, PERIOD FOR SYSTEM_TIME(
+    version_begin_timestamp, version_end_timestamp)
+
+  -- PRIMARY KEY ON GRAIN COLUMNS
+, CONSTRAINT dbo_user_type_pk PRIMARY KEY CLUSTERED (user_type_uid)
+
+) WITH (SYSTEM_VERSIONING = ON (
+  HISTORY_TABLE = dbo.user_type_version));

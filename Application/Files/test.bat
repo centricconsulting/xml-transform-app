@@ -1,0 +1,1 @@
+"CentricXmlTransform.exe" -target "C:\Temporary\result.sql" -xslt "C:\Temporary\ddl-transform.xslt" -source "C:\Temporary\test.mdj" -xml -supress
