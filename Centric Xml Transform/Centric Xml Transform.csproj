@@ -72,6 +72,9 @@
     <Reference Include="System.Xml.Serialization" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="LedBulb.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="ProgramController.cs" />
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
@@ -115,5 +118,6 @@
       <Install>false</Install>
     </BootstrapperPackage>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

@@ -9,14 +9,27 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Diagnostics;
 using System.Globalization;
+using Bulb;
 
 namespace Centric.XmlTransform
 {
   public partial class MainForm : Form
   {
+
+    LedBulb TransformStatusBulb = new LedBulb();
+
     public MainForm()
     {
       InitializeComponent();
+
+      int BulbDiameter = 18;
+
+      this.TransformStatusBulb.Top = TransformButton.Top + TransformButton.Height/2 - BulbDiameter/2;
+      this.TransformStatusBulb.Left = TransformButton.Left - 3 * BulbDiameter;
+      this.TransformStatusBulb.Size = new Size(BulbDiameter, BulbDiameter);
+      this.TransformStatusBulb.Color = Color.LightGray;
+      this.TransformStatusBulb.On = true;
+      this.Controls.Add(this.TransformStatusBulb);
     }
 
     private void MainForm_Load(object sender, EventArgs e)
@@ -41,6 +54,9 @@ namespace Centric.XmlTransform
 
     private void ExecuteTransform()
     {
+
+      this.TransformStatusBulb.Color = Color.Yellow;
+      this.TransformStatusBulb.Update();
 
       // force selection of new output path in overwrite condition
       if (!OverwriteCheckBox.Checked && ProgramController.FileExists(Program.Controller.TargetFilePath))
@@ -67,11 +83,20 @@ namespace Centric.XmlTransform
       // execute transform
       if (!Program.Controller.ExecuteTransform(out string Message))
       {
+
+        this.TransformStatusBulb.Color = Color.Red;
+
+        // update the date label
+        TransformDateLabel.Text = string.Format("Last transformation failed: {0}",
+          DateTime.Now.ToString(ProgramController.DATETIME_STRING_FORMAT, CultureInfo.InvariantCulture));
+
         MessageBox.Show(this, "Transformation failed with the following message:\r\n\r\n" + Message, "Transformation Failed",
           MessageBoxButtons.OK, MessageBoxIcon.Error);
-
+        
         return;
       }
+
+      this.TransformStatusBulb.Color = Color.LawnGreen;
 
       // update the date label
       TransformDateLabel.Text = string.Format("Last transformation completed: {0}",

@@ -47,6 +47,7 @@ namespace Centric.XmlTransform
     public string PostTransformInstruction { get; set; }
     public bool TransformDragDrop { get; set; } = false;
     public string TargetApplicationFilePath { get; set; }
+    public const string DATETIME_STRING_FORMAT = "yyyy-MM-dd h:mm:sstt";
 
     #endregion
 
@@ -232,8 +233,7 @@ namespace Centric.XmlTransform
 
         XmlDocument doc = JsonConvert.DeserializeXmlNode(JsonText, this.RootTagName);
 
-        // add information to the root node
-        const string DATETIME_STRING_FORMAT = "MMMM d, yyyy h:mm:ss tt";
+        // add information to the root node      
 
         XmlAttribute SourceModifyTimeStampAttribute = doc.CreateAttribute("sourceModifiedTimestamp");
         SourceModifyTimeStampAttribute.Value = File.GetLastWriteTime(this.DefinitionFilePath).ToString(DATETIME_STRING_FORMAT);
