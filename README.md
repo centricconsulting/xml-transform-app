@@ -18,7 +18,7 @@ Command line arguments may be provided in any order:
 
 Argument                  |  Description
 :-------------------------|:---------------
-**`-transform "{path}"`** | Identifies the Xslt file used in the transformation.  The file path replaces **`{path}`**.
+<span style="whitespace:nowrap">**`-transform "{path}"`**<\span> | Identifies the Xslt file used in the transformation.  The file path replaces **`{path}`**.
 **`-source "{path}"`**    | Identifies the source Xml or Json file to be transformed.  The file path replaces **`{path}`**.
 **`-target "{path}"`**    | Identifies the target file resulting from the transformation.  The file path replaces **`{path}`**.
 **`-overwrite`**          | Presence of the argument instructs the application to overwrite an existing target file if necessary.
