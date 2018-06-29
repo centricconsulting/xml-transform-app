@@ -16,8 +16,8 @@ Silent execution may be achieved by running the application with command line ar
 
 Command line arguments may be provided in any order:
 
-Argument   |  Description
------------|---------------
+Argument                  |  Description
+:-------------------------|:---------------
 **`-transform "{path}"`** | Identifies the Xslt file used in the transformation.  The file path replaces **`{path}`**.
 **`-source "{path}"`** | Identifies the source Xml or Json file to be transformed.  The file path replaces **`{path}`**.
 **`-target "{path}"`** | Identifies the target file resulting from the transformation.  The file path replaces **`{path}`**.
@@ -26,12 +26,15 @@ Argument   |  Description
 **`-supress`** | Presence of the argument instructs the application to supress generation of the target file.
 
 Example 1: Transform a source Xml file to a target text file.
+
 **```"CentricXmlTransform.exe" -target "C:\Temporary\target.txt" -xslt "C:\Temporary\transform.xslt" -source "C:\Temporary\source.xml" -overwrite```**
 
 Example 2: Transform a source Json file to a target text file.
+
 **```"CentricXmlTransform.exe" -target "C:\Temporary\target.txt" -xslt "C:\Temporary\transform.xslt" -source "C:\Temporary\source.json" -overwrite```**
 
 Example 3: Generate an intermediate Xml from a Json file.
+
 **```"CentricXmlTransform.exe" -target "C:\Temporary\target.txt" -source "C:\Temporary\source.json" -supress```**
 
 ### Notes On Using Json Source Files
@@ -51,4 +54,4 @@ These attributes may be referenced in the Xslt transform file.
 Contains the Visual Studio 2017 Solution for this Windows application.
 
 ### [Application Folder](https://github.com/centricconsulting/xml-transform-app/tree/master/Application)
-This folder contains a compiled utility **`CentricXmlTransform.exe`** and sample Xml and Xslt files.
+This folder contains a compiled utility **`CentricXmlTransform.exe`** and supporting DDL files.  Sample Xml and Xslt files are provided in the [Files](https://github.com/centricconsulting/xml-transform-app/tree/master/Application/Files) folder.
