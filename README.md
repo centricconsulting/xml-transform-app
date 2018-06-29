@@ -1,12 +1,14 @@
 # Centric Xml Transform Utility
 ## Overview
-Centric Xml Transform Utility transforms an Xml or Json file using an Xslt transformation file. a Windows desktop interface to perform XML transformation using XSLT.  This application is compatible with **.NET Framework 4.5** and higher.
+Centric Xml Transform Utility transforms an Xml or Json file using an Xslt transformation file. The application may be used either through an interface or silently with command line arguments.
+
+Running this application requires installation of **.NET Framework 4.5** or higher.  Windows 10 users will already have this version of .NET installed.
 
 ### Application Interface
 The interface provides an easy-to-use method for selecting transform, source and target files.
 
 Centric Xml Transform Interface:
-![alt text](https://github.com/centricconsulting/xml-transform-app/tree/master/Application/Files/screenshot.png "Centric Xml Transform Interface")
+![alt text](https://github.com/centricconsulting/xml-transform-app/blob/master/Application/Files/screenshot.png "Centric Xml Transform Interface")
 
 For a walkthrough of the application, [watch this video](https://youtu.be/qDaesrvaqrM).
 
