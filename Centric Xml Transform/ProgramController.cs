@@ -243,6 +243,10 @@ namespace Centric.XmlTransform
         TransformTimeStampAttribute.Value = DateTime.Now.ToString(DATETIME_STRING_FORMAT);
         doc.FirstChild.Attributes.Append(TransformTimeStampAttribute);
 
+        XmlAttribute SoureFileAttribute = doc.CreateAttribute("sourceFile");
+        SoureFileAttribute.Value = GetFileName(this.DefinitionFilePath);
+        doc.FirstChild.Attributes.Append(SoureFileAttribute);
+
         Message = null;
         return doc;
 

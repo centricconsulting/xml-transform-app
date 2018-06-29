@@ -18,33 +18,26 @@ Command line arguments may be provided in any order:
 
 Argument                  |  Description
 :-------------------------|:---------------
-<span style="whitespace:nowrap">**`-transform "{path}"`**<\span> | Identifies the Xslt file used in the transformation.  The file path replaces **`{path}`**.
+**`-transform "{path}"`** | Identifies the Xslt file used in the transformation.  The file path replaces **`{path}`**.
 **`-source "{path}"`**    | Identifies the source Xml or Json file to be transformed.  The file path replaces **`{path}`**.
 **`-target "{path}"`**    | Identifies the target file resulting from the transformation.  The file path replaces **`{path}`**.
 **`-overwrite`**          | Presence of the argument instructs the application to overwrite an existing target file if necessary.
 **`-xml`**                | Presence of the argument instructs the application to generate an intermediate Xml file.  This is only applicable when the source file has a Json format.
 **`-supress`**            | Presence of the argument instructs the application to supress generation of the target file.
 
-**Example 1**
-Transform a source Xml file to a target text file.
+**Example 1** Transform a source Xml file to a target text file.
 
-**```
-"CentricXmlTransform.exe" -target "C:\Temporary\target.txt" -xslt "C:\Temporary\transform.xslt" -source "C:\Temporary\source.xml" -overwrite
-```**
+**```"CentricXmlTransform.exe" -target "C:\Temporary\target.txt" -xslt "C:\Temporary\transform.xslt" -source "C:\Temporary\source.xml" -overwrite```**
 
 **Example 2**
 Transform a source Json file to a target text file.
 
-**```
-"CentricXmlTransform.exe" -target "C:\Temporary\target.txt" -xslt "C:\Temporary\transform.xslt" -source "C:\Temporary\source.json" -overwrite
-```**
+**```"CentricXmlTransform.exe" -target "C:\Temporary\target.txt" -xslt "C:\Temporary\transform.xslt" -source "C:\Temporary\source.json" -overwrite```**
 
 **Example 3**
 Generate an intermediate Xml from a Json file.
 
-**```
-"CentricXmlTransform.exe" -target "C:\Temporary\target.xml" -source "C:\Temporary\source.json" -supress
-```**
+**```"CentricXmlTransform.exe" -target "C:\Temporary\target.xml" -source "C:\Temporary\source.json" -supress```**
 
 ### Notes On Using Json Source Files
 Json source files are internally converted to an intermediate Xml file. The intermediate Xml file will have the same file name as the source Json file, but with a file type of **`.xml`**.  This file may be saved using the **`-xml`** command line argument or equivalent checkbox in the interface.
